@@ -6,7 +6,7 @@ path_root = '/psfrData/NIRC2/';
 path_calib = '/psfrData/PUAKO_RESULTS/CALIBRATION/';
 path_save='/psfrData/PUAKO_RESULTS/RESULTS/';
 path_night = [path_root,'20130801/'];
-
+testPSFR = true;
 p = puako();
 
 %% Test data 
