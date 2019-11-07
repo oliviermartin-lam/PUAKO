@@ -31,30 +31,31 @@ psfr.flags.isTiltAniso = strcmp(psfr.trs.aoMode,'LGS') && (psfr.trs.ngs.x~=0 || 
 psfr.flags.isAniso = psfr.flags.isFocalAniso + psfr.flags.isAngularAniso + psfr.flags.isTiltAniso;
 
 if psfr.flags.isAniso    
+    Cn2 = psfr.trs.atm.Cn2/sum(psfr.trs.atm.Cn2(:))*psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
     %2\ Get the anisoplanatism phase structure function due to angular and focal anisoplanatism
     if psfr.flags.isAngularAniso
-    Dani_l= instantiateAnisoplanatism(psfr,psfr.trs.ngs);   
+    psfr.sf.Dani_l= instantiateAnisoplanatism(psfr,psfr.trs.ngs);   
     elseif psfr.flags.isFocalAniso
-        Dani_l= instantiateAnisoplanatism(psfr,psfr.trs.lgs);
+        psfr.sf.Dani_l= instantiateAnisoplanatism(psfr,psfr.trs.lgs);
     end
-    Dani  = squeeze(sum(bsxfun(@times, psfr.Dani_l, reshape(psfr.trs.atm.Cn2,1,1,[])), 3));
+    psfr.sf.Dani  = squeeze(sum(bsxfun(@times, psfr.sf.Dani_l, reshape(Cn2,1,1,[])), 3));
     
     if psfr.flags.isTiltAniso
     %3\ Get the tip-tilt anisoplanatism phase structure function
-        DaniTT_l  = instantiateAnisoplanatism(psfr,psfr.trs.ngs,'isTT',true);
-        Dani  = squeeze(Dani+ sum(bsxfun(@times, DaniTT_l, reshape(psfr.trs.atm.Cn2,1,1,[])), 3));
-        Dani_l= Dani_l  + DaniTT_l;
+        psfr.sf.DaniTT_l  = instantiateAnisoplanatism(psfr,psfr.trs.ngs,'isTT',true);
+        psfr.sf.Dani  = squeeze(psfr.sf.Dani+ sum(bsxfun(@times, psfr.sf.DaniTT_l, reshape(Cn2,1,1,[])), 3));
+        psfr.sf.Dani_l= psfr.sf.Dani_l  + psfr.sf.DaniTT_l;
     end
     
     %4\ Get the anisoplanatism spatial filter
     if psfr.flags.toeplitz
-        Kani = exp(-0.5*psfr.Dani);
+        Kani = exp(-0.5*psfr.sf.Dani);
     else
         idx       = true(psfr.otf.dk);
         dp        = psfr.tel.Ddm/(psfr.otf.dk-1);
         psfr.otfDen= tools.zonalCovarianceToOtf(Dani*0,psfr.otf.nOtf,psfr.trs.tel.Ddm,dp,idx);
         psfr.mskOtf= psfr.otfDen > 1e-6;
-        Kani  = tools.zonalCovarianceToOtf(Dani,psfr.nOtf,psfr.trs.tel.Ddm,dp,idx);
+        Kani  = tools.zonalCovarianceToOtf(Dani,psfr.otf.nOtf,psfr.trs.tel.Ddm,dp,idx);
         Kani(psfr.mskOtf) = Kani(psfr.mskOtf)./psfr.otfDen(psfr.mskOtf);
     end
 end
@@ -62,7 +63,7 @@ end
 function Dani_l = instantiateAnisoplanatism(psfr,gs,varargin)
 inputs = inputParser;
 inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
-inputs.addRequired('gs',@(x) isa(x,'source'));
+inputs.addRequired('gs',@isstruct);
 inputs.addParameter('isTT',false,@islogical);
 inputs.parse(psfr,gs,varargin{:});
 
@@ -70,11 +71,12 @@ inputs.parse(psfr,gs,varargin{:});
 fprintf('Instantiate the anisoplanatism model...');
 
 %1\ Defining the spatial filters
-D       = psfr.tel.Ddm;
-npt  = psfr.dk;
+D       = psfr.trs.tel.Ddm;
+npt  = psfr.otf.dk;
 isTT = inputs.Results.isTT;
+atm = psfr.trs.atm;
 if gs.height ~= Inf
-    zern   = zernike(2:3,'resolution',npt);
+    zern   = zernike(2:3,npt);
     TT     = zern.modes;
     Hfilter= eye(npt^2) - TT*pinv(TT);
     Hfilter= Hfilter*psfr.trs.mat.Hdm;
@@ -89,14 +91,14 @@ end
 
 %2\ SF Calculation
 if psfr.flags.toeplitz
-    Dani_l = zeros(psfr.nOtf,psfr.nOtf,psfr.atm.nLayer,psfr.nStars);
+    Dani_l = zeros(psfr.otf.nOtf,psfr.otf.nOtf,atm.nLayer,psfr.trs.src.nSrc);
 else
-    Dani_l  = zeros(psfr.dk^2,psfr.dk^2,psfr.atm.nLayer,psfr.nStars);
+    Dani_l  = zeros(psfr.otf.dk^2,psfr.otf.dk^2,atm.nLayer,psfr.trs.src.nSrc);
 end
 
 if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to derive the SF
     % Get inputs
-    f0      = 2*pi/psfr.atm.L0;
+    f0      = 2*pi/atm.L0;
     % Phase sample locations in the pupil
     x       = -D/2:D/(psfr.dk-1):D/2;
     [x1,y1] = meshgrid(x);
@@ -106,18 +108,18 @@ if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to 
     rhoX    = bsxfun(@minus,X1,x1(:));
     rhoY    = bsxfun(@minus,Y1,y1(:)');
     % Instantiation
-    Ialpha  = @(x,y) tools.mcDonald(f0*hypot(x,y));
+    Ialpha  = @(x,y) mcDonald(f0*hypot(x,y));
     I0      = Ialpha(0,0);
     I1      = Ialpha(rhoX,rhoY);
     cte     = 0.12184*0.06*(2*pi)^2;
     
     % Anisoplanatism Structure Function
-    for iSrc = 1:numel(psfr.src)        
-        thx = psfr.src(iSrc).x - gs.x;
-        thy =psfr.src(iSrc).y - gs.y;
+    for iSrc = 1:numel(psfr.trs.src.nSrc)        
+        thx = psfr.trs.src(iSrc).x - gs.x;
+        thy =psfr.trs.src(iSrc).y - gs.y;
         
-        for l = 1:psfr.atm.nLayer
-            zl   = psfr.atm.heights(l);
+        for l = 1:atm.nLayer
+            zl   = atm.heights(l);
             if gs.height == Inf  || isempty(gs.height)
                 I2    = Ialpha(rhoX+zl*thx,rhoY+zl*thy);
                 I3    = Ialpha(zl*thx,zl*thy);
@@ -134,49 +136,58 @@ if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to 
             end
             
             if psfr.flagToeplitz
-                tmp = tools.covMatrix2Map(tmp,psfr.dk,psfr.dk);
-                tmp = tools.interpolateOtf(tmp,psfr.nOtf);
+                tmp = tools.covMatrix2Map(tmp,psfr.otf.dk,psfr.otf.dk);
+                tmp = tools.interpolateOtf(tmp,psfr.otf.nOtf);
             end
-            Dani_l(:,:,l,iSrc)  = Dani_l(:,:,l,iSrc) + cte*psfr.atm.L0^(5/3)*Hfilter*tmp*Hfilter';
+            Dani_l(:,:,l,iSrc)  = Dani_l(:,:,l,iSrc) + cte*atm.L0^(5/3)*Hfilter*tmp*Hfilter';
         end
     end
     
 else % Use the native OOMAO routines in phaseStats to calculate the anisoplanatism SF.
     
     %Layers-by-layers covariance matrices
-    cov = @(dk,D,atm,gs) phaseStats.spatioAngularCovarianceMatrix(dk,D,psfr.atm,gs);
-    cross = @(dk,D,atm,src,gs) phaseStats.spatioAngularCovarianceMatrix(dk,D,psfr.atm,src,'srcCC',gs);        
+    atm.r0 = psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
+    cov = @(dk,D,atm,gs) tools.spatioAngularCovarianceMatrix(dk,D,atm,gs);
+    cross = @(dk,D,atm,src,gs) tools.spatioAngularCovarianceMatrix(dk,D,atm,src,'srcCC',gs);        
     thereIsFocAniso = gs.height~=Inf;
+    Cn2 = psfr.trs.atm.Cn2/sum(psfr.trs.atm.Cn2(:))*psfr.trs.atm.r0^(-5/3);
     
-    for l=1:psfr.atm.nLayer
-        subAtm    = psfr.atm.slab(l);
-        if subAtm.layer.altitude % Check that the layer is not at the ground
-            f0 = (psfr.atm.r0^(-5/3)*psfr.atm.layer(l).fractionnalR0);
-            % Atmospheric covariance matrix in the guide star direction
-            Cgg = cov(psfr.dk,D,subAtm,gs);
+    for l=1:atm.nLayer
+        if atm.heights(l) ~=0 % Check that the layer is not at the ground
+            f0 =Cn2(l);
+            subAtm.r0 = atm.r0^(-5/3)*atm.weights(l);
+            subAtm.L0 = atm.L0;
+            subAtm.heights = atm.heights(l);
+            subAtm.weights = 1;
+            subAtm.windSpeed = atm.windSpeed(l);
+            subAtm.windDirection = atm.windDirection(l);
+            subAtm.nLayer = 1;
             
-            for iSrc=1:psfr.nStars
-                thereIsAngAniso = any(psfr.src(iSrc).directionVector - gs.directionVector);
+            % Atmospheric covariance matrix in the guide star direction
+            Cgg = cov(psfr.otf.dk,D,subAtm,gs);
+            
+            for iSrc=1:psfr.trs.src.nSrc
+                thereIsAngAniso = any([psfr.trs.src(iSrc).x - gs.x,psfr.trs.src(iSrc).y - gs.y]);
                 % Phase covariance matrix
-                if psfr.src(iSrc).height ~= gs(iSrc).height
+                if psfr.trs.src(iSrc).height ~= gs(iSrc).height
                     %LGS case: Css ~= Csg
-                    Css = cov(psfr.dk,D,subAtm,psfr.src(iSrc));
+                    Css = cov(psfr.otf.dk,D,subAtm,psfr.trs.src(iSrc));
                 else
                     %NGS case: Css = Csg
                     Css = Cgg;
                 end
                 % Cross covariance matrix
                 if thereIsAngAniso || thereIsFocAniso
-                    Cgs = cross(psfr.dk,D,subAtm,psfr.src(iSrc),gs);
+                    Cgs = cross(psfr.otf.dk,D,subAtm,psfr.trs.src(iSrc),gs);
                     Cgs = Cgs{1};
                 else
                     Cgs = 0;
                 end
                 % Anisoplanatic covariance matrix
                 Cani = Hfilter*(Css + Cgg - Cgs - Cgs')*Hfilter'/f0;
-                if psfr.flagToeplitz
-                    Cani = tools.covMatrix2Map(Cani,psfr.dk,psfr.dk);
-                    Cani = tools.interpolateOtf(Cani,psfr.nOtf);
+                if psfr.flags.toeplitz
+                    Cani = tools.covMatrix2Map(Cani,psfr.otf.dk,psfr.otf.dk);
+                    Cani = tools.interpolateOtf(Cani,psfr.otf.nOtf);
                     Dani_l(:,:,l,iSrc) = 2*(max(Cani(:)) - Cani);
                 else                
                     Dani_l(:,:,l,iSrc) = 2*(diag(Cani) - Cani);
@@ -185,5 +196,10 @@ else % Use the native OOMAO routines in phaseStats to calculate the anisoplanati
         end
     end
 end
+
+    function out = mcDonald(x)
+        out = x.^(5/6.).*besselk(5./6,x)./(2^(5/6.)*gamma(11/6.)) ;
+        out(find(x == 0)) = 3/5.;
+        
 
 

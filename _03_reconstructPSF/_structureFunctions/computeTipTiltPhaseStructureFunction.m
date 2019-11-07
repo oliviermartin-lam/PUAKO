@@ -21,7 +21,9 @@ inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
 inputs.parse(psfr);
 
 %1\ Discretizing the pupil domain
-[Y,X]  = getGridCoordinates(psfr.otf.nOtf,psfr.otf.nOtf,0.5);
+res  = getGridCoordinates(psfr.otf.nOtf,psfr.otf.nOtf,0.5);
+Y  = res.x2D;
+X  = res.y2D;
 %2\ Get the tip-tilt covariance matrix
 Ctt    = psfr.trs.tipTilt.com*psfr.trs.tipTilt.com'/psfr.trs.tipTilt.nExp;
 %3\ Get the tip-tilt residual phase

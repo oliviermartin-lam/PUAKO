@@ -8,8 +8,10 @@ classdef psfReconstruction < handle
         otf = [];
         cov = [];
         sf = [];
-        psf = [];    % Reconstructed 2D PSF
-        flags = [];        
+        psf = [];                                                     % Reconstructed 2D PSF - psfStats class
+        sky = [];                                                 % Sky 2D image  - psfStats class
+        flags = [];     
+        rec_;
     end
     
     methods

@@ -46,7 +46,7 @@ dk  = 2*kc/nK; % Pixel scale
 %3\ Define the atmospheric phase PSD
 fr0 = atm.weights;
 L0 = psfr.trs.res.seeing.L0;
-r0 = psfr.trs.res.seeing.r0;
+r0 = psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
 [vlx,vly] = pol2cart(atm.windDirection,atm.windSpeed);
 cst = (24*gamma(6/5)/5)^(5/6)*(gamma(11/6)^2/(2*pi^(11/3)));
 Wphi = r0^(-5./3)*cst*(k.^2 + 1/L0.^2).^(-11./6);

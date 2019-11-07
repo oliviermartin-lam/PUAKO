@@ -43,10 +43,11 @@ for kObj=1:nObj
     hold on;
 end
 
+obj_name = {trs.obj_name};
 subplot(2,2,1)
 ylabel('Magnitude','interpreter','latex','FontSize',20);
 xlabel('Frequency (Hz) ','interpreter','latex','FontSize',20);
-legend([trs.obj_name],'interpreter','latex','FontSize',10,'Location','northeast');
+legend(obj_name,'interpreter','latex','FontSize',10,'Location','northeast');
 title('Open-loop transfer function','interpreter','latex','FontSize',20);
 grid ON
 set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
@@ -54,7 +55,7 @@ set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
 subplot(2,2,2)
 ylabel('Magnitude','interpreter','latex','FontSize',20);
 xlabel('Frequency (Hz) ','interpreter','latex','FontSize',20);
-legend([trs.obj_name],'interpreter','latex','FontSize',10,'Location','northwest');
+legend(obj_name,'interpreter','latex','FontSize',10,'Location','northwest');
 title('Closed-loop transfer function','interpreter','latex','FontSize',20);
 grid ON
 set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
@@ -62,7 +63,7 @@ set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
 subplot(2,2,3)
 ylabel('Magnitude','interpreter','latex','FontSize',20);
 xlabel('Frequency (Hz) ','interpreter','latex','FontSize',20);
-legend([trs.obj_name],'interpreter','latex','FontSize',10,'Location','northwest');
+legend(obj_name,'interpreter','latex','FontSize',10,'Location','northwest');
 title('Rejection transfer function','interpreter','latex','FontSize',20);
 grid ON
 set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
@@ -70,7 +71,7 @@ set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
 subplot(2,2,4)
 ylabel('Magnitude','interpreter','latex','FontSize',20);
 xlabel('Frequency (Hz) ','interpreter','latex','FontSize',20);
-legend([trs.obj_name],'interpreter','latex','FontSize',10,'Location','northwest');
+legend(obj_name,'interpreter','latex','FontSize',10,'Location','northwest');
 title('Noise transfer function','interpreter','latex','FontSize',20);
 grid ON
 set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');

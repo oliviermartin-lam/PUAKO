@@ -187,12 +187,10 @@ classdef xineticsInfluenceFunctionModel  < handle
                 wv                      = sparse(wv(:,iIF(kIF)));
                 wu                      = sparse(wu(:,jIF(kIF)));
                 
-                for kIF = 1:nValid % parfor doesn't work with sparse matrix!
-                    fprintf('\b\b\b\b%4d',kIF)
+                for kIF = 1:nValid % parfor doesn't work with sparse matrix!                    
                     buffer = wv(:,kIF)*wu(:,kIF)';
                     m_modes(:,kIF) = buffer(:);
                 end
-                fprintf('\n')
                 obj.modes = m_modes;
                 
             else                
@@ -222,7 +220,6 @@ classdef xineticsInfluenceFunctionModel  < handle
                 s_s = zeros(expectedNnz,1);
                 index = 0;
                 for kIF = 1:nActu
-                    fprintf('\b\b\b\b%4d',kIF)
                     buffer      = wv(:,kIF)*wu(:,kIF)';
                     [i_,~,s_]   = find(buffer(:));
                     n           = length(i_);
@@ -232,11 +229,9 @@ classdef xineticsInfluenceFunctionModel  < handle
                     s_j(index)  = ones(n,1)*kIF;
                     
                 end
-                fprintf('\n')
                                 
                 index       = 1:index(end);
                 obj.modes = sparse(s_i(index),s_j(index),s_s(index),resolution^2,nValid);
-                add(obj.log,obj,sprintf('Actual non-zeros: %d',nnz(obj.modes)))
             end                
         end    
     end

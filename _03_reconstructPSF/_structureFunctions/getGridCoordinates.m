@@ -17,15 +17,18 @@ Change Record:     ::
 ------------HEADER END----------------
 %}
 
-function [x2D,y2D,r2D,th2D,x1D,y1D] = getGridCoordinates(nX,nY,pScale,varargin)
+function res = getGridCoordinates(nX,nY,pScale,varargin)
 inputs = inputParser;
 inputs.addRequired('nX', @isnumeric);
 inputs.addRequired('nY', @isnumeric);
 inputs.addRequired('pScale', @isnumeric);
 inputs.parse(nX,nY,pScale,varargin{:});
 
+%1D
+res.x1D = linspace(-1,1-~mod(nX,2)*2/nX,nX)*pScale;
+res.y1D = linspace(-1,1-~mod(nY,2)*2/nY,nY)*pScale;        
+[res.th1D,res.r1D] = cart2pol(res.x1D ,res.y1D);
 
-x1D = linspace(-1,1-iseven(nX)*2/nX,nX)*pScale;
-y1D = linspace(-1,1-iseven(nY)*2/nY,nY)*pScale;        
-[x2D,y2D] = meshgrid(x1D,y1D);
-[th2D,r2D] = cart2pol(x2D,y2D);
+%2D
+[res.x2D,res.y2D] = meshgrid(res.x1D,res.y1D);
+[res.th2D,res.r2D] = cart2pol(res.x2D,res.y2D);

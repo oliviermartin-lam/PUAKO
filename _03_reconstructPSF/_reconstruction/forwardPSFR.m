@@ -52,7 +52,7 @@ psfr.cov.Cho = psfr.cov.Cho_z;
 psfr.otf.otfCCD = computeCcdOpticalTransferFunction(psfr.trs.cam.pixelScale*1e-3,2*psfr.trs.tel.Dcircle/psfr.trs.cam.wavelength/psfr.otf.nOtf,psfr.otf.nOtf);
 
 %9\ Reconstruct the PSF
-psfr.psf.rec = zeros(psfr.psf.fov,psfr.psf.fov,psfr.trs.src.nSrc);
+psfr.rec_ = zeros(psfr.psf.fov,psfr.psf.fov,psfr.trs.src.nSrc);
 for iSrc = 1:psfr.trs.src.nSrc
     % Get the OTFwith a PSF Nyquist-sampling
     psfr.otf.otfShannon = psfr.otf.otfStat.*exp(-0.5*(psfr.sf.Dfit+ psfr.sf.Dal+ psfr.sf.Dho + psfr.sf.Dtt + psfr.sf.Dani(:,:,iSrc))).*psfr.otf.otfCCD;  
@@ -63,6 +63,6 @@ for iSrc = 1:psfr.trs.src.nSrc
     psf_ij = tools.otfShannon2psf(psfr.otf.otfShannon,psfr.trs.cam.samp(iSrc),psfr.psf.fov);
     % Normalization across the support the PSF will be cropped    
     S = sum(sum(tools.crop(psf_ij,psfr.trs.cam.resolution)));
-    psfr.psf.rec(:,:,iSrc) = psf_ij/S;    
+    psfr.rec_(:,:,iSrc) = psf_ij/S;    
 end
 

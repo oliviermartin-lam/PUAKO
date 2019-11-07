@@ -26,7 +26,7 @@ end
 
 %% id is numeric
 % Grab the corresponding data ID
-if (ischar(id) || isstring(id)) && strcmpi(id,'ALL')
+if ((ischar(id) || isstring(id)) && strcmpi(id,'ALL')) ||(iscell(id) && contains(upper(id),'ALL'))
     % Process all data in obj.data_id.trs.id
     id_trs = dataID_trs;
     id_imag = dataID_imag;
@@ -58,7 +58,7 @@ elseif isnumeric(id)
     %% id is a cell
 elseif iscell(id)
     % Determine all the data files covered by the user's request
-    [n_tot,flagStatus] = getDataNumberFromUserSpecification(obj.data_id,id);
+    [n_tot,idxgood,flagStatus] = getDataNumberFromUserSpecification(obj.data_id,id);
     if strcmp(flagStatus,'error')
         flagStatus = 'error';
         return
@@ -69,18 +69,19 @@ elseif iscell(id)
     fitsHdr =struct('field',cell(1,n_tot),'value',cell(1,n_tot),'comments',cell(1,n_tot));        
     
     %Looping on files
-    for k=1:numel(id)             
-        if isnumeric(id{k})              
-            id_trs(k+nnz(obj_pos)-1) = dataID_trs(id{k});
-            id_imag(k+nnz(obj_pos)-1) = dataID_imag(id{k});
-            fitsHdr(k+nnz(obj_pos)-1) = obj.fitsHeader(id{k});
-        elseif (ischar(id{k}) || isstring(id{k}))
-            obj_pos = contains({dataID_trs.id},id{k}) & contains({dataID_imag.id},id{k}) ;
+    for k=1:nnz(idxgood)
+        id_tmp = id{idxgood(k)};
+        if isnumeric(id_tmp)              
+            id_trs(k+nnz(obj_pos)-1) = dataID_trs(id_tmp);
+            id_imag(k+nnz(obj_pos)-1) = dataID_imag(id_tmp);
+            fitsHdr(k+nnz(obj_pos)-1) = obj.fitsHeader(id_tmp);
+        elseif (ischar(id_tmp) || isstring(id_tmp))
+            obj_pos = contains({dataID_trs.id},id_tmp) & contains({dataID_imag.id},id_tmp) ;
             if ~isempty(obj_pos)
                 id_trs(k:k+nnz(obj_pos)-1) = dataID_trs(obj_pos);
                 id_imag(k:k+nnz(obj_pos)-1) = dataID_imag(obj_pos);
                 fitsHdr(k:k+nnz(obj_pos)-1) = obj.fitsHeader(obj_pos);
-                if any(contains({dataID_trs.id},id{k}) ~= contains({dataID_imag.id},id{k}))
+                if any(contains({dataID_trs.id},id_tmp) ~= contains({dataID_imag.id},id_tmp))
                     warning(sprintf(['\nThere are not as many IMAG than TRS files.\n']));
                     flagStatus = 'warning';
                 end

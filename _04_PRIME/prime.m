@@ -1,14 +1,15 @@
-classdef bestFitting < handle
+classdef prime < handle
     
     properties
         % --------------------- Fitting process setup
+        psfr;
         % PSF model Initial guess
         psf;
         im;
-        psfr;
         im_sky;
         nStars;
         fov_sky;
+        fov_fit;
         ron;
         modelFUN;
         psf_init;
@@ -40,10 +41,6 @@ classdef bestFitting < handle
         initStars;              % Stars parameters initial guess
         xStars;yStars;          % Astrometry initial guess
         fluxStars;              % Photometry initial guess
-        % Time counter
-        t_inst;
-        t_fit;
-        t_mod;
         % --------------------- PSF outputs
         psf_fit;
         im_fit;
@@ -53,19 +50,6 @@ classdef bestFitting < handle
         eqm_fit;
         eqm_3sig;
         bg_fit;
-        SR_sky;
-        dSR_sky;
-        FWHM_sky;
-        dFWHM_sky;
-        SR_fit;
-        dSR_fit;
-        FWHM_fit;
-        dFWHM_fit;
-        psdAO;
-        SR_init;
-        dSR_init;
-        FWHM_init;
-        dFWHM_init;
         % --------------------- Stellar parameters outputs
         xstars_fit;
         xstars_prec;
@@ -83,7 +67,7 @@ classdef bestFitting < handle
     end
     
     methods
-        function obj = bestFitting(psfr,varargin)
+        function obj = prime(psfr,varargin)
             inputs = inputParser;
             inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
             inputs.addParameter('aoinit',[],@isnumeric);
@@ -103,7 +87,7 @@ classdef bestFitting < handle
             inputs.parse(psfr,varargin{:});
             
             % Parse inputs            
-            obj.psfr_ = psfr;
+            obj.psfr = psfr;
             obj.im_sky   = psfr.trs.cam.frame;
             MaxIter      = inputs.Results.MaxIter;
             TolX         = inputs.Results.TolX;
@@ -117,6 +101,7 @@ classdef bestFitting < handle
             %1\ Check the frame dimensions
             obj.nStars  = psfr.trs.src.nSrc;
             obj.fov_sky  = size(obj.im_sky,1);
+            obj.fov_fit  = size(obj.psfr.rec_,1);
             
             %2\ Normalize the observation and define the weight matrix
             % Normalization
@@ -155,13 +140,11 @@ classdef bestFitting < handle
             obj.weightMap= 1;
             obj.im.rec_init  = obj.modelFUN(obj.x_init,obj.xdata);
             obj.weightMap= wMap;
-            obj.t_mod    = toc();
             
             %7\ Non-linear least-squares minimization
             tic;
             [beta,~,fRes,~,~,~,J] = lsqcurvefit(obj.modelFUN,obj.x_init,obj.xdata,...
                 obj.ydata,obj.lbounds,obj.ubounds,obj.fitOption);
-            obj.t_fit = toc();
             
             obj.beta_ = beta;
             obj.J_    = J;

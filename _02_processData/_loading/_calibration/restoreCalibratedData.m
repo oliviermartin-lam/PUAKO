@@ -29,15 +29,15 @@ trs.tel.elevation = cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'EL')));
 trs.tel.azimuth = cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'AZ')));
 trs.tel.zenith_angle = 90 - trs.tel.elevation;
 trs.tel.airmass = 1/cos(trs.tel.zenith_angle*pi/180);
-trs.tel.pupilAngle  = cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'ROTPPOSN'))) - trs.tel.elevation; %See WFS_RotationAngle.pdf - C. Neyman
+trs.tel.pupilAngle  = 2*(cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'ROTPPOSN'))) - trs.tel.elevation - cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'INSTANGL')))); %See WFS_RotationAngle.pdf - C. Neyman
 
 switch trs.cam.pupilTracking        
     case 'LARGEHEX'
         tmp = restore_idl([path_calib,'_pupil/LargeHex.sav']);       
-        [X,Y] = getGridCoordinates(trs.tel.resolution,trs.tel.resolution,tmp.B);
-        outerHex = hexagonalSegment(X,Y,2*tmp.B,trs.tel.pupilAngle);
-        innerHex = hexagonalSegment(X,Y,2*tmp.A,trs.tel.pupilAngle);
-        trs.tel.pupil = outerHex - innerHex;
+        res = getGridCoordinates(trs.tel.resolution,trs.tel.resolution,tmp.B);
+        outerHex = hexagonalSegment(res.x2D,res.y2D,2*tmp.B,trs.tel.pupilAngle);
+        innerHex = hexagonalSegment(res.x2D,res.y2D,2*tmp.A,trs.tel.pupilAngle);
+        trs.tel.pupil = double(logical(outerHex - innerHex));
     case 'INCIRCLE'
         tmp = restore_idl([path_calib,'_pupil/KeckSegmentedPupilArchitecture.sav']);
         dM1 = trs.tel.pupil.Dcircle;
@@ -51,7 +51,7 @@ switch trs.cam.pupilTracking
             trs.tel.pupil = tools.interpolate(fitsread([path_calib,'_pupil/keckPupil.fits']),trs.tel.resolution);
         end
 end
-
+trs.dm.pupilMask = logical(tools.interpolate(trs.tel.pupil,trs.dm.nActuators));
 
 %% 2\ Get DM calibration
 

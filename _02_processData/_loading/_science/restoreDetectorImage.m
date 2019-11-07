@@ -15,7 +15,7 @@ if isempty(nPSF)
    nPSF = nCCD/2;
 end
 
-trs.cam.name = cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.value,'CURRINST')));
+trs.cam.name = cell2mat(trs.fitsHdr.value(strcmp(trs.fitsHdr.field,'CURRINST')));
 
 %% 2\ Post-processing - step 1: background/flat and bad pixel
 
@@ -52,15 +52,15 @@ rawImg = rawImg./flatMap;
 rawImg(rawImg~=rawImg) = 0; % get rid on NAN values
 
 %3.4 Put bad pixels to zeros           
-rawImg = ~badPixMap.*rawImg;
+img = ~badPixMap.*rawImg;
 
 %3.5 Subtract the median value
-img = rawImg - median(rawImg(~badPixMap));
+%img = rawImg - median(rawImg(~badPixMap));
             
 %3.6 Interpolating bad pixels from the avalaible neighbors
 if any(badPixMap(:)) && flagInterpBadPix
     supBad = tools.createDeadPixFrame(badPixMap);
-    img    = tools.corrDeadPixFrame(supBad, rawImg );
+    img    = tools.corrDeadPixFrame(supBad, img );
 end
             
 %% 3\ Post-processing - step 2: PSF cropping

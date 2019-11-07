@@ -17,10 +17,10 @@ if  any([0,90,180,270,360,-90,-180,-270,-360] == th)
 else
     %1 interpolate the dimension to mitigate pixellization effects
     overSamp = max(round(400/size(X0,1)),1); %% 400 pixels is enough to have a good description
-    [X0,Y0] = getGridCoordinates(size(X0,1)*overSamp,size(Y0,1)*overSamp,max(abs(X0(:))));    
+    res = getGridCoordinates(size(X0,1)*overSamp,size(Y0,1)*overSamp,max(abs(X0(:))));    
     %2\ Hexagonal shape with rotation
-    Xr = X0.*cos(th) + Y0.*sin(th);
-    Yr = Y0.*cos(th) - X0.*sin(th);
+    Xr = res.x2D.*cos(th) + res.y2D.*sin(th);
+    Yr = res.y2D.*cos(th) - res.x2D.*sin(th);
     out = (abs(Xr) <= sqrt(3)*segsize/4).*(abs(Yr) <= Xr/sqrt(3) + segsize/2) .*(abs(Yr) <= -Xr/sqrt(3) + segsize/2);
     %3\ Get back to the original resolution
     out = tools.interpolate(out,[size(X0,1),size(Y0,1)]);

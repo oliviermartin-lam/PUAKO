@@ -28,9 +28,10 @@ inputs = inputParser;
 inputs.addRequired('trs',@(x) isa(x,'telemetry'));
 inputs.addParameter('wvl',0.5e-6,@isnumeric);
 inputs.addParameter('fitL0',true,@islogical);
-inputs.addParameter('best',false,@islogical);
+inputs.addParameter('flagBest',false,@islogical);
+inputs.addParameter('flagMedian',true,@islogical);
 inputs.addParameter('D1',11.25,@isnumeric);
-inputs.addParameter('D2',0,@isnumeric);
+inputs.addParameter('D2',2.65,@isnumeric);
 inputs.addParameter('badModesList',[],@isnumeric);
 inputs.addParameter('aoMode','NGS',@ischar);
 inputs.addParameter('nMin',4,@isnumeric);
@@ -39,14 +40,20 @@ inputs.parse(trs,varargin{:});
 
 
 %1\ Parsing inputs 
+fitL0 = inputs.Results.fitL0;
+flagBest = inputs.Results.flagBest;
+flagMedian = inputs.Results.flagMedian;
 D1 = inputs.Results.D1; % 9 Equivalent outer diameter of a circular pupil within which actuators commands are not sensitive to edges effects
 D2 = inputs.Results.D2; % 2.65 Same for the inner diameter
+badModesList = inputs.Results.badModesList;
+aoMode = inputs.Results.aoMode;
+nMin = inputs.Results.nMin;
+nMax = inputs.Results.nMax;
 wvl = inputs.Results.wvl;
 
 
 %2\ Getting the reconstructed wavefront and noise covariance at 500 nm
-uout = (2*pi/wvl)*trs.dm.com;%selectActuators(trs.hodm_pos,D1,D2);
-D1 = 11.25;D2 = 0;
+uout = (2*pi/wvl)*trs.dm.com;%selectActuators(trs.dm.com,D1,D2);
 validActu = find(uout(:,1));
 nValid = numel(validActu);
 if isfield(trs.mat,'dmIF_hr') && ~isempty(trs.mat.dmIF_hr)
@@ -70,7 +77,9 @@ varPh = sum(std(uout(validActu,:),[],2).^2)/nValid - varN;
 r0_ = (0.111/varPh)^(3/5)*D1*(1-D2/D1);
 
 %4\ Estimating the r0/outer scale
-[r0,L0,dr0,dL0,jind,z_mod,z_meas,z_noise] =  getr0L0FromDMcommands(dmModes,uout,trs.tel,Cn,varargin{:},'initR0',r0_);
+opt = {'fitL0',fitL0,'flagBest',flagBest,'flagMedian',flagMedian,'initR0',r0_,'D1',D1,'D2',D2...
+    'badModesList',badModesList,'aoMode',aoMode,'nMin',nMin,'nMax',nMax};
+[r0,L0,dr0,dL0,jind,z_mod,z_meas,z_noise] =  getr0L0FromDMcommands(dmModes,uout,trs.tel,Cn,opt{:});
 
 
 fprintf('r_0 estimated from the telemetry: %.3g cm\n',1e2*r0);
@@ -78,29 +87,31 @@ fprintf('L_0 estimated from the telemetry: %.3g m\n',L0);
 
 %5\ Estimating the atmosphere-limited PSF FWHM
 k1 = 1.03*wvl*constants.radian2arcsec;
-fwhm = k1/r0;
-dfwhm= k1*dr0/r0^2;
+seeing = k1/r0;
+dseeing= k1*dr0/r0^2;
 
 if L0 ~=0
     k2     = 2.813;
     k3     = 0.356;
     sqfact = sqrt(1-k2*(r0/L0)^k3);
-    fwhm = fwhm*sqfact;
+    seeing = seeing*sqfact;
     
-    dfdr01 = dr0/r0*fwhm;
+    dfdr01 = dr0/r0*seeing;
     dfdr02 = 0.5*k1*dr0/r0/sqfact*k2*k3*L0^(-k3)*r0^(k3-1);
     dfdr0 = hypot(dfdr01,dfdr02);        
     dfdL0 = 0.5*k1*dL0/r0/sqfact*k2*k3*r0^(k3)*L0^(-k3-1);    
-    dfwhm=hypot(dfdr0,dfdL0);
+    dseeing=hypot(dfdr0,dfdL0);
 end
 
 % Concatenating in structure results
 resSeeing.r0 = r0;
 resSeeing.L0 = L0;
-resSeeing.fwhm = fwhm;
+resSeeing.seeing = seeing;
 resSeeing.dr0 = dr0;
 resSeeing.dL0 = dL0;
-resSeeing.dfwhm = dfwhm;
+resSeeing.dseeing = dseeing;
+resSeeing.w0 = 0.976*constants.radian2arcsec*0.5e-6/r0;
+resSeeing.dw0 = dr0*0.976*constants.radian2arcsec*0.5e-6/r0^2;
 resZer.jindex = jind;
 resZer.std_model = z_mod;
 resZer.std_meas = z_meas;

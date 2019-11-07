@@ -81,6 +81,29 @@ classdef telemetry < handle
             std_n= getZernikeDecomposition(obj,jindex);
         end
         
+        function displayZernikeFitting(obj)
+            inputs = inputParser;
+            inputs.addRequired('obj', @(x) isa(x,'telemetry'));
+                        
+            if (isfield(obj,'res') || isprop(obj,'res')) && isfield(obj.res,'zernike') && ~isempty(obj.res.zernike)
+                h = figure;
+                semilogy(obj.res.zernike.jindex,obj.res.zernike.std_meas,'ks--','MarkerFaceColor','k','MarkerSize',5);
+                hold on;
+                semilogy(obj.res.zernike.jindex,obj.res.zernike.std_model ,'ro--','MarkerFaceColor','r','MarkerSize',5);
+                semilogy(obj.res.zernike.jindex,obj.res.zernike.std_noise,'bd--','MarkerFaceColor','b','MarkerSize',5);
+                xlabel('Noll''s j-index','interpreter','latex','FontSize',20);
+                ylabel('Zernike coefficients std (nm)','interpreter','latex','FontSize',20);
+                set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');
+                legend({'Measurements','Model-fitted','Noise'},'interpreter','latex','FontSize',20);
+            else
+                msg = input('Sorry, you must active the seeing estimation procedure first, do you want me to do it (''y/n'') ?');
+                if strcmpi(msg,'Y')
+                    obj.getSeeing();
+                    displayZernikeFitting(obj);
+                end
+            end
+        end
+        
         %% Transfer function
         function displayAoTransferFunction(obj)           
             displayTransferFunction(obj);
@@ -116,16 +139,17 @@ classdef telemetry < handle
         end
         
          %% Seeing estimation
-        function getSeeing(obj,varargin)
+        function out = getSeeing(obj,varargin)
             inputs = inputParser;
             inputs.addRequired('obj',@(x) isa(x,'telemetry'));
             inputs.addParameter('nMin',4,@isnumeric);
             inputs.addParameter('nMax',120,@isnumeric);
             inputs.addParameter('fitL0',true,@islogical);
-            inputs.addParameter('best',false,@islogical);
+            inputs.addParameter('flagBest',false,@islogical);
+            inputs.addParameter('flagMedian',true,@islogical);
             inputs.addParameter('wvl',0.5e-6,@isnumeric);
             inputs.addParameter('aoMode','NGS',@ischar);
-            inputs.addParameter('D1',9,@isnumeric);
+            inputs.addParameter('D1',11.25,@isnumeric);
             inputs.addParameter('D2',2.65,@isnumeric);
             inputs.parse(obj,varargin{:});
             
@@ -133,21 +157,22 @@ classdef telemetry < handle
             nObj = numel(obj);                                              
             r0 = zeros(1,nObj);
             L0 = zeros(1,nObj);
-            fwhm = zeros(1,nObj);
+            seeing = zeros(1,nObj);
             dr0 = zeros(1,nObj);
             dL0 = zeros(1,nObj);
-            dfwhm = zeros(1,nObj);
+            dseeing = zeros(1,nObj);
                                   
             for kObj=1:nObj
                     obj(kObj).res.seeing = [];
-                    tmp = estimateSeeingFromTelemetry(obj(kObj),varargin{:});
-                    r0(kObj) = tmp.r0;
-                    L0(kObj) = tmp.L0;
-                    fwhm(kObj) = tmp.fwhm;
-                    dr0(kObj) = tmp.dr0;
-                    dL0(kObj) = tmp.dL0;
-                    dfwhm(kObj) = tmp.dfwhm;                    
-                    obj(kObj).res.seeing = tmp;
+                    [out(kObj),resZ] = estimateSeeingFromTelemetry(obj(kObj),varargin{:});
+                    r0(kObj) = out.r0;
+                    L0(kObj) = out.L0;
+                    seeing(kObj) = out.seeing;
+                    dr0(kObj) = out.dr0;
+                    dL0(kObj) = out.dL0;
+                    dseeing(kObj) = out.dseeing;                        
+                    obj(kObj).res.seeing = out;
+                    obj(kObj).res.zernike = resZ;
             end                       
         end
         

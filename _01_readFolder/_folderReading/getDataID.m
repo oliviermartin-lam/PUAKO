@@ -109,3 +109,16 @@ else
     warning(sprintf(['\nThere is IMAG data loaded !\n']));
     flagStatus = 'warning';
 end
+
+% Remove Fits file for which there's no telemetry data
+if nTRS~=0 && nTRS~=nIMAG
+    if nIMAG > nTRS
+        idx = contains({obj.data_id.imag.name},{obj.data_id.trs.name});
+        obj.data_id.imag = obj.data_id.imag(idx);
+    else
+        idx = contains({obj.data_id.trs.name},{obj.data_id.imag.name});
+        obj.data_id.trs = obj.data_id.trs(idx);
+    end
+end
+    
+    

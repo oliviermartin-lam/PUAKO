@@ -33,7 +33,8 @@ nY = inputs.Results.nY;
 actuPitch = inputs.Results.pitch;
 pScale = (nX-1)*actuPitch/2;
 %1D DM actuators position for which x1D(nX/2+1) = 0 and y1D(nY/2+1) = 0;
-[~,~,r2D] = getGridCoordinates(nX,nY,pScale);
+res = getGridCoordinates(nX,nY,pScale);
+r2D = res.r2D;
 
 %2\ Define DM actuators masks
 maskDM349 = r2D <= 11.25/2;

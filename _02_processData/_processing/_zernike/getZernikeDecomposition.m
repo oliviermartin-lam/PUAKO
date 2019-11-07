@@ -35,7 +35,7 @@ colors_p = [linspace(c1(1),c2(1),nObj)',linspace(c1(2),c2(2),nObj)',linspace(c1(
 
 % Define the Zernike modes
 nPup = sqrt(size(trs(1).mat.dmIF,1));
-z = zernike(jindex(jindex~=2 & jindex~=3),'resolution',nPup);
+z = zernike(jindex(jindex~=2 & jindex~=3),nPup);
 u2z      = pinv(full(z.modes))*trs(1).mat.dmIF;
 
 for kObj=1:nObj
@@ -58,5 +58,5 @@ for kObj=1:nObj
 end
 ylabel('Zernike rms value (nm)','interpreter','latex','FontSize',20);
 xlabel('j-index ','interpreter','latex','FontSize',20);
-legend([trs.obj_name],'interpreter','latex','FontSize',10,'Location','northeast');
+legend([{trs.obj_name}],'interpreter','latex','FontSize',10,'Location','northeast');
 set(gca,'FontSize',20,'FontName','cmr12','TickLabelInterpreter','latex');

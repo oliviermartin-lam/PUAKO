@@ -47,13 +47,14 @@ trs.tel.elevation = [];
 trs.tel.azimuth = [];
 trs.tel.pupilAngle = [];                                        % Pupil rotation with respect to the detector            
 trs.tel.pupilTracking = [];
+
 %2\ HO WFS structure
 trs.wfs = [];
 trs.wfs.slopes = [];                                              % WFS slopes in pixel units;
 trs.wfs.nSl = 608;                                               % Number of slopes measurements within the pupil (x and y)
 trs.wfs.nSl_c = [];                                               % Number of controlled slopes
 trs.wfs.nExp = [];
-trs.wfs.theta = 0;                                               % DM pupil rotation
+trs.wfs.theta = 90;                                             % WFS Pupil rotation with respect to the imager pupil
 trs.wfs.validSubaperture = [];
 
 %3\ HO DM structure
@@ -64,6 +65,7 @@ trs.dm.nActuators = 21;                                    % 1D Number of actuat
 trs.dm.nCom = 349;                                          % Number of total actuators within the pupil
 trs.dm.pitch = 0.5625;                                       % DM actuator pitch in meter
 trs.dm.validActuators = [];
+trs.dm.pupilMask =[];
 
 %4\ TT structure
 trs.tipTilt = [];
@@ -138,3 +140,4 @@ trs.cam.badPixelMap = [];                                   % Bad pixels map
 trs.cam.background = [];                                    % Background map
 trs.cam.flat = [];                                                 % Flat map
 trs.cam.pupilConfig = [];
+trs.cam.theta = [];

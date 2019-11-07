@@ -4,7 +4,7 @@ inputs.addRequired('trs',@(x) isa(x,'telemetry'));
 
 %% 1\ HO LOOP
 %1.1. Define the frequency vectors
-trs.holoop.tf.freq = linspace(0,trs.wfs.nExp/2,trs.wfs.nExp/2)*trs.holoop.freq/trs.wfs.nExp;
+trs.holoop.tf.freq = linspace(trs.holoop.freq/trs.wfs.nExp,trs.wfs.nExp/2,trs.wfs.nExp/2)*trs.holoop.freq/trs.wfs.nExp;
 %1.2 wfs TF
 trs.holoop.tf.wfs    = wfsTransferFunction(trs.holoop.tf.freq,trs.holoop.freq);
 %1.3. Lag tf
@@ -23,7 +23,7 @@ trs.holoop.tf.pn  = (trapz(trs.holoop.tf.freq,abs(trs.holoop.tf.ntf).^2)*2/trs.h
 
 %% 2\ TT LOOP
 %2.1. Define the frequency vectors
-trs.ttloop.tf.freq = linspace(0,trs.tipTilt.nExp/2,trs.tipTilt.nExp/2)*trs.ttloop.freq/trs.tipTilt.nExp;%logspace(-3,log10(0.5*trs.ttloop.freq),trs.tipTilt.nExp/2);
+trs.ttloop.tf.freq = linspace(trs.ttloop.freq/trs.tipTilt.nExp,trs.tipTilt.nExp/2,trs.tipTilt.nExp/2)*trs.ttloop.freq/trs.tipTilt.nExp;%logspace(-3,log10(0.5*trs.ttloop.freq),trs.tipTilt.nExp/2);
 %2.2 wfs TF
 trs.ttloop.tf.wfs    = wfsTransferFunction(trs.ttloop.tf.freq,trs.ttloop.freq);
 %2.3 TT Lag tf
@@ -38,5 +38,5 @@ trs.ttloop.tf.ctf =trs.ttloop.tf.ol./(1+trs.ttloop.tf.ol);
 trs.ttloop.tf.rtf =1 - trs.ttloop.tf.ctf;
 %2.8 noise transfer function
 trs.ttloop.tf.ntf = squeeze(trs.ttloop.tf.servo./(1+trs.ttloop.tf.ol));
-trs.ttloop.tf.pn  = (trapz(trs.holoop.tf.freq,abs(trs.ttloop.tf.ntf).^2)*2/trs.ttloop.freq);
+trs.ttloop.tf.pn  = (trapz(trs.ttloop.tf.freq,abs(trs.ttloop.tf.ntf).^2)*2/trs.ttloop.freq);
 

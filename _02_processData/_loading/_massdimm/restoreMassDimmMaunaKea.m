@@ -39,7 +39,7 @@ if ~isempty(dimmfile) || ~isempty(massfile) || ~isempty(proffile)
         mu0     = (0.976*constants.radian2arcsec)^(5/3)*0.423*4*pi*pi/MASSProfiler.wavelength^(1/3);
         cn20    = seeing0^(5/3)/mu0;
         % total Cn2
-        [iB,~] = profiler.indexTime(MASSProfiler.timeInHours,sysTime);
+        [iB,~] = profiler.indexTime(MASSProfiler.timeInHours,trs.sysTime);
         alt     = [0 MASSProfiler.altitude];
         cn2h    = [cn20 MASSProfiler.profs(iB,:)];
         fl      = cn2h/sum(cn2h(:));

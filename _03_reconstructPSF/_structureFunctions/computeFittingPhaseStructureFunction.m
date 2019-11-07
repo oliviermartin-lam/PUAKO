@@ -23,7 +23,7 @@ inputs.parse(psfr,varargin{:});
 aoPattern = inputs.Results.aoPattern;
 
 %1\ Parsing inputs
-r0 = psfr.trs.res.seeing.r0;
+r0 = psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
 L0 = psfr.trs.res.seeing.L0;
 nActu = psfr.trs.dm.nActuators;
 d = psfr.trs.dm.pitch;
