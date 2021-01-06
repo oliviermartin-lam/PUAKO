@@ -1,85 +1,115 @@
-function obj = updateResults(obj,beta,fRes,J)
+function obj = updateResults(obj)
             inputs = inputParser;
-            inputs.addRequired('obj',@(x) isa(x,'prime'));
-            inputs.addRequired('beta',@isnumeric);
-            inputs.addRequired('fRes',@isnumeric);
-            inputs.addRequired('J',@isnumeric);
-            inputs.parse(obj,beta,fRes,J);
+            inputs.addRequired('obj',@(x) isa(x,'prime'));     
+            inputs.parse(obj);
             
+            %1\ Grab results
+            beta_   = obj.beta_;
+            J       = obj.JacobianMatrix_;
+            fRes    = obj.residualMap_;
+            nStars  = obj.psfr.trs.src(obj.idSrc).nObj;
             
-            %1\ Compensate photometry and background for the normalization factor
-            beta(1:obj.nStars) = beta(1:obj.nStars).*obj.normFactor;
-            beta(end) = beta(end).*obj.normFactor;
+            %2\ Compensate photometry for the normalization factor
+            beta_(1:nStars) = beta_(1:nStars).*obj.normFactor;
             
-            %2\ Get precision of estimates
-            dx = diff(nlparci(real(beta),fRes,'jacobian',J),1,2);
-            for i=1:length(dx)
-                dx(i) = diff(nlparci(real(beta(i)),fRes,'jacobian',J(:,i)),1,2);
+            %3\ Get precision of estimates
+            dx = diff(nlparci(real(beta_),fRes,'jacobian',J),1,2);
+            if any(dx~=dx)
+                for i=1:length(dx)
+                    dx(i) = diff(nlparci(real(beta_(i)),fRes,'jacobian',J(:,i)),1,2);
+                end
             end
-            dx = reshape(dx,1,[]);
-            obj.x_final = beta;
-            obj.x_prec  = dx;
+            dx              = reshape(dx,1,[]);
+            obj.x_final     = beta_;
+            obj.x_prec      = dx;
             
-            %3\ Unpacking AO parameters
-            wvl_ratio =  obj.psfr.trs.cam.wavelength/500e-9;
-            d = obj.nStars*3;
-            % Seeing estimation
-            idx         = obj.idxR0 +d;
-            obj.r0_fit  = sum(beta(idx))^(-3/5);
-            obj.r0_prec = 3/5*sum(beta(idx))^(-8/5)*sqrt(sum(dx(idx).^2));
-            % Cn2 estimation
-            idx         = obj.idxCn2 +d;
-            obj.Cn2_fit = beta(idx);
-            obj.Cn2_prec= dx(idx);
-            if isempty(obj.Cn2_fit)
-                obj.Cn2_fit = obj.r0_fit^(-5/3);
-                obj.Cn2_prec= 5/3*obj.r0_prec*obj.r0_fit^(-8/3);
-            end
-            % Retrieved atmosphere
-            if numel(obj.Cn2_fit) == 1
-                hl = 0;
-            else
-                hl          = [obj.atm.layer.altitude];
-            end
-            
-            nL  = length(obj.Cn2_fit*wvl_ratio^2);
-            r0  = sum(obj.Cn2_fit*wvl_ratio^2)^(-3/5);
-            fl  = obj.Cn2_fit/sum(obj.Cn2_fit);
+            %4\ Unpacking atmosphere parameters     
+            d                       = nStars*3;
+            obj.atm_fit             = [];            
+            obj.atm_fit.wavelength  = obj.psfr.trs.cam.wavelength;
            
-            %bestFit.atm_fit = atmosphere(photometry.V0,r0,bestFit.atm.L0,'fractionnalR0',fl,...
-              %  'altitude',hl,'layeredL0',bestFit.atm.L0,'windSpeed',wS,'windDirection',wD);
-            
-            % AO parameters
-            obj.xao_fit = beta([obj.idxDho,obj.idxDtt,obj.idxDal]+3*obj.nStars);
-            obj.xao_prec= dx([obj.idxDho,obj.idxDtt,obj.idxDal]+3*obj.nStars);
-            
-            %4\ Unpacking Stellar parameters
-            obj.bg_fit           = beta(end);
-            obj.xstars_fit       = beta(1:d);
-            obj.xstars_prec      = dx(1:d);
-            obj.catalog_fit.id   = 1:obj.nStars;
-            obj.catalog_fit.RA   = obj.xstars_fit(obj.nStars+1:obj.nStars*2)*obj.psfr.trs.cam.pixelScale;
-            obj.catalog_fit.DEC  = obj.xstars_fit(2*obj.nStars+1:obj.nStars*3)*obj.psfr.trs.cam.pixelScale;
-            obj.catalog_fit.FLUX = obj.xstars_fit(1:obj.nStars);
-            obj.catalog_fit.dRA  = obj.xstars_prec(obj.nStars+1:obj.nStars*2)*obj.psfr.trs.cam.pixelScale;
-            obj.catalog_fit.dDEC = obj.xstars_prec(2*obj.nStars+1:obj.nStars*3)*obj.psfr.trs.cam.pixelScale;
-            obj.catalog_fit.dFLUX= obj.xstars_prec(1:obj.nStars);
-            obj.catalog_fit.dMAG = 2.5*obj.catalog_fit.dFLUX./obj.catalog_fit.FLUX/log(10);
-            
-            %5\ Grab the best-fitted PSF + 3-sigma PSF
-            wMap        = obj.weightMap;
-            obj.weightMap  = 1;
-            obj.im.rec = imageModel(beta,obj.xdata,obj);
-            if all(obj.x_prec <= max(abs(obj.lbounds),abs(obj.ubounds)))
-                im_3sig_m   = obj.modelFUN(obj.x_final-obj.x_prec,obj.xdata);
-                psf_3sig_m  = obj.psf_fit;
-                im_3sig_p   = obj.modelFUN(obj.x_final+obj.x_prec,obj.xdata);
-                psf_3sig_p  = obj.psf_fit;
-                obj.im.rec_3sig = [im_3sig_m,im_3sig_p];
-                obj.psf.rec_3sig= [psf_3sig_m,psf_3sig_p];
+            % r0 estimation
+            idx                     = obj.idxR0 +d;
+            obj.atm_fit.r0          = sum(beta_(idx))^(-3/5);
+            obj.atm_fit.dr0         = 3/5*sum(beta_(idx))^(-8/5)*sqrt(sum(dx(idx).^2));
+            obj.atm_fit.r0_500nm    = obj.atm_fit.r0*(0.5e-6/obj.psfr.trs.cam.wavelength)^1.2;
+            % Cn2 estimation
+            idx                     = obj.idxCn2 +d;
+            if isempty(obj.idxCn2)
+                obj.atm_fit.nLayer  = 1;
+                obj.atm_fit.weights = 1;
+                obj.atm_fit.heights = 0;               
+                obj.atm_fit.Cn2     = obj.atm_fit.r0;
+                obj.atm_fit.dCn2    = dx(obj.idxR0 +d);
+            else
+                obj.atm_fit.nLayer  = numel(beta_(idx));
+                obj.atm_fit.weights = beta_(idx)/sum(beta_(idx));
+                obj.atm_fit.heights = [obj.psfr.trs.atm.heights];
+                obj.atm_fit.Cn2     = beta_(idx);
+                obj.atm_fit.dCn2    = dx(idx);
             end
-            obj.weightMap= wMap;
             
+                       
+            % 5\ Unpacking gains parameters
+            obj.gains_fit.gAO   = obj.x_fixed.gAO ;
+            obj.gains_fit.dgAO  = 0;
+            obj.gains_fit.gTT   = obj.x_fixed.gTT;
+            obj.gains_fit.dgTT  = 0;
+            obj.gains_fit.gAl   = obj.x_fixed.gAl;
+            obj.gains_fit.dgAl  = 0;
+            if ~isempty(obj.idxDao)
+                obj.gains_fit.gAO   = beta_(obj.idxDao+d);
+                obj.gains_fit.dgAO  = dx(obj.idxDao+d);
+            end
+            if ~isempty(obj.idxDtt)
+                obj.gains_fit.gTT   = beta_(obj.idxDtt+d);
+                obj.gains_fit.dgTT  = dx(obj.idxDtt+d);
+            end
+            if ~isempty(obj.idxDal)
+                obj.gains_fit.gAl   = beta_(obj.idxDal+d);
+                obj.gains_fit.dgAl  = dx(obj.idxDal+d);
+            end
+                       
+            % 6\ Getting the fitted map
+            if ~isempty(obj.idxStatModes)
+                fact = 1e-9*2*pi/obj.psfr.trs.cam.wavelength;
+                obj.map_fit.coefs           = beta_(obj.idxStatModes+d);
+                obj.map_fit.dcoefs          = dx(obj.idxStatModes+d);
+                obj.map_fit.map_zer         = fact*obj.psfr.trs.tel.pupil.*reshape(obj.statModes*obj.map_fit.coefs',obj.psfr.trs.tel.resolution,[]);
+                obj.map_fit.map_stat        = obj.map_fit.map_zer + obj.psfr.res.static.stat_map_interp*fact;
+                obj.map_fit.wfsFocusCalib   = 0.198*obj.psfr.trs.wfs.zstage_defocus; %micron/mm
+                obj.map_fit.wfsFocusMeas    = obj.map_fit.coefs(obj.map_fit.jindex==4)*1e-3;
+                obj.map_fit.dwfsFocusMeas   = obj.map_fit.dcoefs(obj.map_fit.jindex==4)*1e-3;
+            end
+            
+            %7\ Unpacking and concatenates Stellar parameters
+            xstars_fit              = beta_(1:d);
+            xstars_prec             = dx(1:d);
+            obj.catalog_fit.id      = 1:nStars;
+            obj.catalog_fit.x       = xstars_fit(nStars+1:nStars*2)*obj.psfr.trs.cam.pixelScale;
+            obj.catalog_fit.y       = xstars_fit(2*nStars+1:nStars*3)*obj.psfr.trs.cam.pixelScale;
+            obj.catalog_fit.flux    = xstars_fit(1:nStars);
+            obj.catalog_fit.dx      = xstars_prec(nStars+1:nStars*2)*obj.psfr.trs.cam.pixelScale;
+            obj.catalog_fit.dy      = xstars_prec(2*nStars+1:nStars*3)*obj.psfr.trs.cam.pixelScale;
+            obj.catalog_fit.dflux   = xstars_prec(1:nStars);
+            obj.catalog_fit.dmag    = 2.5*obj.catalog_fit.dflux./obj.catalog_fit.flux/log(10);
+            if obj.fitBg
+                beta_(end)          = beta_(end).*obj.normFactor;
+                obj.catalog_fit.bg  = beta_(end);
+                obj.catalog_fit.dbg = dx(end).*obj.normFactor;
+            end
+            
+            
+            %8\ Grab the best-fitted PSF
+            wMap            = obj.weightMap;
+            obj.weightMap   = 1;  % Put the weighting map to ones to have the reconstruction over all pixels          
+            obj.rec_        = imageModel(beta_,obj.xdata,obj);
+            obj.psf         = psfStats(obj.rec_,obj.psfr.trs.tel.pupil,obj.psfr.trs.cam.wavelength,obj.psfr.trs.cam.samp,...
+                obj.psfr.trs.cam.pixelScale,obj.psfr.trs.src(obj.idSrc));
+            obj.weightMap   = wMap;              
+            
+            %9\ Get the residual error
+            obj.catalog_fit.fvu = puakoTools.getFVU(obj.psfr.trs.cam.image(:,:,obj.idSrc),obj.psf.image);
         end
         
         

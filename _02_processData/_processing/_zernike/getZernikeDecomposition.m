@@ -22,10 +22,10 @@ inputs.addRequired('trs', @(x) isa(x,'telemetry'));
 inputs.addRequired('jindex', @isnumeric);
 
 % Instantiation
-nObj = numel(trs);
-jindex = jindex(jindex~=1);
-nJ = length(jindex);
-std_n = zeros(nObj,nJ);
+nObj    = numel(trs);
+jindex  = jindex(jindex~=1);
+nJ      = length(jindex);
+std_n   = zeros(nObj,nJ);
 %color
 c1 = [0 0 255]/255;%black
 c2 = [255,0,0]/255; %red
@@ -34,9 +34,9 @@ c2 = [255,0,0]/255; %red
 colors_p = [linspace(c1(1),c2(1),nObj)',linspace(c1(2),c2(2),nObj)',linspace(c1(3),c2(3),nObj)'];
 
 % Define the Zernike modes
-nPup = sqrt(size(trs(1).mat.dmIF,1));
-z = zernike(jindex(jindex~=2 & jindex~=3),nPup);
-u2z      = pinv(full(z.modes))*trs(1).mat.dmIF;
+nPup    = sqrt(size(trs(1).mat.dmIF,1));
+z       = zernike_puako(jindex(jindex~=2 & jindex~=3),nPup);
+u2z     = pinv(full(z.modes))*trs(1).mat.dmIF;
 
 for kObj=1:nObj
     % Projection onto Zernike

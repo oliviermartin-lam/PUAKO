@@ -15,17 +15,22 @@ Change Record:     ::
 ------------HEADER END----------------
 %}
 
-function [sf_2D,Ctt] = computeTipTiltPhaseStructureFunction(psfr)
+function obj = computeTipTiltPhaseStructureFunction(obj)
 inputs = inputParser;
-inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
-inputs.parse(psfr);
+inputs.addRequired('obj',@(x) isa(x,'psfReconstruction'));
+inputs.parse(obj);
 
 %1\ Discretizing the pupil domain
-res  = getGridCoordinates(psfr.otf.nOtf,psfr.otf.nOtf,0.5);
-Y  = res.x2D;
-X  = res.y2D;
+res  = getGridCoordinates(obj.otf.nOtf,obj.otf.nOtf,0.5);
+Y = res.x2D;
+X = res.y2D;
 %2\ Get the tip-tilt covariance matrix
-Ctt    = psfr.trs.tipTilt.com*psfr.trs.tipTilt.com'/psfr.trs.tipTilt.nExp;
-%3\ Get the tip-tilt residual phase
-Du_tt   = (2*pi/psfr.trs.cam.wavelength)^2*(Ctt - psfr.trs.res.noise(1).Cn_tt);
-sf_2D   = Du_tt(1,1)*X.^2 + Du_tt(2,2)*Y.^2 + Du_tt(1,2)*X.*Y +Du_tt(2,1).*Y'.*X';
+obj.cov.Ctt    = obj.trs.tipTilt.com*obj.trs.tipTilt.com'/obj.trs.tipTilt.nExp;
+%3\ Get the tip-tilt covariance
+Du_tt   = (2*pi/obj.trs.cam.wavelength)^2*(obj.cov.Ctt - obj.trs.res.noise(1).Cn_tt);
+%4\ Rotate the X/Y axis if necessary
+th =  -obj.trs.tel.pupilAngle*pi/180;
+Xr = X*cos(th) +Y*sin(th);
+Yr = -X*sin(th) + Y*cos(th);
+%5\Get the tip-tilt sf
+obj.sf.Dtt   = Du_tt(1,1)*Xr.^2 + Du_tt(2,2)*Yr.^2 + Du_tt(1,2)*Xr.*Yr +Du_tt(2,1).*Yr'.*Xr';

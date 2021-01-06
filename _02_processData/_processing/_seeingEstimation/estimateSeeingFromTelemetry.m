@@ -29,13 +29,13 @@ inputs.addRequired('trs',@(x) isa(x,'telemetry'));
 inputs.addParameter('wvl',0.5e-6,@isnumeric);
 inputs.addParameter('fitL0',true,@islogical);
 inputs.addParameter('flagBest',false,@islogical);
-inputs.addParameter('flagMedian',true,@islogical);
-inputs.addParameter('D1',11.25,@isnumeric);
+inputs.addParameter('flagMedian',false,@islogical);
+inputs.addParameter('D1',9,@isnumeric);
 inputs.addParameter('D2',2.65,@isnumeric);
 inputs.addParameter('badModesList',[],@isnumeric);
 inputs.addParameter('aoMode','NGS',@ischar);
-inputs.addParameter('nMin',4,@isnumeric);
-inputs.addParameter('nMax',120,@isnumeric);
+inputs.addParameter('jMin',4,@isnumeric);
+inputs.addParameter('jMax',120,@isnumeric);
 inputs.parse(trs,varargin{:});
 
 
@@ -47,22 +47,30 @@ D1 = inputs.Results.D1; % 9 Equivalent outer diameter of a circular pupil within
 D2 = inputs.Results.D2; % 2.65 Same for the inner diameter
 badModesList = inputs.Results.badModesList;
 aoMode = inputs.Results.aoMode;
-nMin = inputs.Results.nMin;
-nMax = inputs.Results.nMax;
+jMin = inputs.Results.jMin;
+jMax = inputs.Results.jMax;
 wvl = inputs.Results.wvl;
-
-
-%2\ Getting the reconstructed wavefront and noise covariance at 500 nm
-uout = (2*pi/wvl)*trs.dm.com;%selectActuators(trs.dm.com,D1,D2);
-validActu = find(uout(:,1));
-nValid = numel(validActu);
 if isfield(trs.mat,'dmIF_hr') && ~isempty(trs.mat.dmIF_hr)
     dmModes = trs.mat.dmIF_hr;
 else
     dmModes = trs.mat.dmIF;
 end
 
-%2\ Get the noise covariance matrix and variance
+%2\ Getting the reconstructed wavefront and noise covariance at 500 nm
+[uout,mskModes] = selectActuators(trs.dm.com,D1,D2);
+uout = (2*pi/wvl)*uout;
+validActu = mskModes(:);
+nValid = nnz(mskModes);
+
+%3\ Getting the pupil mask
+nRes = sqrt(size(dmModes,1));
+res = getGridCoordinates(nRes,nRes,10.54*trs.dm.pitch);
+mskOuter = abs(res.x2D) <= D1/2 & abs(res.y2D) <= D1/2;
+mskInner = res.r2D <= D1/2 & res.r2D >= D2/2;
+dmModes = bsxfun(@times,dmModes,mskInner(:));
+
+
+%3\ Get the noise covariance matrix and variance
 if ~isfield(trs.res,'noise') || (isfield(trs.res,'noise')  && isempty(trs.res.noise(1).Cn_ho))
     fprintf('Estimate the noise covariance matrix\n')
     getNoiseSTD(trs);
@@ -72,21 +80,41 @@ Cn2 = trs.res.noise(1).Cn_ho;
 Cn(validActu,validActu) = Cn2(validActu,validActu)*(2*pi/wvl)^2;
 varN = trace(Cn(validActu,validActu))/nValid;
 
-%3\ Preliminary r0 estimation sig^2 = 0.111*(D(1-o)/r0)^5/3
+%4\ Preliminary r0 estimation sig^2 = 0.111*(D(1-o)/r0)^5/3
 varPh = sum(std(uout(validActu,:),[],2).^2)/nValid - varN;
-r0_ = (0.111/varPh)^(3/5)*D1*(1-D2/D1);
+jMaxData = round((sqrt(nValid)+1)*(sqrt(nValid)+2)/2-1);
+kAO = 0.134;%piston and tip-tilt excluded
+kFit = 0.2944*jMaxData^(-sqrt(3)/2);
+%var = (kAO - kFit)*(D/r0)^5/3
+r0_ = min(D1/(varPh/(kAO-kFit))^(3/5),0.2);
+
 
 %4\ Estimating the r0/outer scale
-opt = {'fitL0',fitL0,'flagBest',flagBest,'flagMedian',flagMedian,'initR0',r0_,'D1',D1,'D2',D2...
-    'badModesList',badModesList,'aoMode',aoMode,'nMin',nMin,'nMax',nMax};
+opt = {'fitL0',fitL0,'flagBest',flagBest,'flagMedian',flagMedian,'initR0',r0_,'D1',D1,'D2',D2,...
+    'badModesList',badModesList,'aoMode',aoMode,'jMin',jMin,'jMax',jMax,'mskModes',mskModes,'mskPup',mskOuter};
 [r0,L0,dr0,dL0,jind,z_mod,z_meas,z_noise] =  getr0L0FromDMcommands(dmModes,uout,trs.tel,Cn,opt{:});
 
+resZer.fitL0 = fitL0;
+resZer.flagBest = flagBest;
+resZer.flagMedian = flagMedian;
+resZer.r0_init = r0_;
+
+
+% !!!! IF the precision is not good,adjust the r0 only !!!
+if dr0*3 > 1
+    opt = {'fitL0',false,'flagBest',flagBest,'flagMedian',flagMedian,'initR0',r0_,'D1',D1,'D2',D2,...
+        'badModesList',badModesList,'aoMode',aoMode,'jMin',jMin,'jMax',jMax,'mskModes',mskModes,'mskPup',mskOuter};
+    [r0,~,dr0,~,jind,z_mod,z_meas,z_noise] =  getr0L0FromDMcommands(dmModes,uout,trs.tel,Cn,opt{:});
+end
 
 fprintf('r_0 estimated from the telemetry: %.3g cm\n',1e2*r0);
 fprintf('L_0 estimated from the telemetry: %.3g m\n',L0);
 
 %5\ Estimating the atmosphere-limited PSF FWHM
-k1 = 1.03*wvl*constants.radian2arcsec;
+if r0~=r0
+    r0 = r0_;
+end
+k1 = 0.976*wvl*constants.radian2arcsec;
 seeing = k1/r0;
 dseeing= k1*dr0/r0^2;
 
@@ -106,12 +134,12 @@ end
 % Concatenating in structure results
 resSeeing.r0 = r0;
 resSeeing.L0 = L0;
-resSeeing.seeing = seeing;
+resSeeing.seeing_VonKarman = seeing;
 resSeeing.dr0 = dr0;
 resSeeing.dL0 = dL0;
-resSeeing.dseeing = dseeing;
-resSeeing.w0 = 0.976*constants.radian2arcsec*0.5e-6/r0;
-resSeeing.dw0 = dr0*0.976*constants.radian2arcsec*0.5e-6/r0^2;
+resSeeing.dseeing_VonKarman = dseeing;
+resSeeing.seeing_Kolmo = 0.976*constants.radian2arcsec*0.5e-6/r0;
+resSeeing.dseeing_Kolmo = dr0*0.976*constants.radian2arcsec*0.5e-6/r0^2;
 resZer.jindex = jind;
 resZer.std_model = z_mod;
 resZer.std_meas = z_meas;

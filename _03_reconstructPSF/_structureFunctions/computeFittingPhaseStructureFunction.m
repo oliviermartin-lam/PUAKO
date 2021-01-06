@@ -15,45 +15,46 @@ Creation date      :: 10/04/2019
 Change Record:     ::
 ------------HEADER END----------------
 %}
-function [sf_2D,psd] = computeFittingPhaseStructureFunction(psfr,varargin)
+function obj = computeFittingPhaseStructureFunction(obj,varargin)
 inputs = inputParser;
-inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
-inputs.addParameter('aoPattern','circle',@ischar)
-inputs.parse(psfr,varargin{:});
+inputs.addRequired('obj',@(x) isa(x,'psfReconstruction'));
+inputs.addParameter('aoPattern','influ',@ischar)
+inputs.parse(obj,varargin{:});
 aoPattern = inputs.Results.aoPattern;
 
 %1\ Parsing inputs
-r0 = psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
-L0 = psfr.trs.res.seeing.L0;
-nActu = psfr.trs.dm.nActuators;
-d = psfr.trs.dm.pitch;
-nT = psfr.otf.nTimes;
-
+r0 = obj.trs.res.seeing.r0*(obj.trs.cam.wavelength/0.5e-6)^1.2;
+L0 = obj.trs.res.seeing.L0;
+nActu = obj.trs.dm.nActuators;
+nT = obj.otf.nTimes;
+d = obj.trs.dm.pitch;
 %2\ Define the frequency space
-nK   = psfr.otf.nOtf;
+nK   = obj.otf.nOtf;
 [kx,ky] = freqspace(nK,'meshgrid');
 kc  = 1/(2*d);
 kx = kx*kc*nT;
 ky = ky*kc*nT;
 k   = hypot(kx,ky);
-dk  = kc/nActu; % Pixel scale
+dk  = 2*kc*nT/nK; % Pixel scale
 
 %3\ Define the atmospheric phase PSD
 cst = r0^(-5/3)*(24*gamma(6/5)/5)^(5/6)*(gamma(11/6)^2/(2*pi^(11/3)));
 psd = cst*(k.^2 + 1/L0.^2).^(-11/6);
 
 %4\ Filtering the AO-controlled area
+
 if strcmp(aoPattern,'circle')
-    idx = k<=kc;
+    msk = k > kc;
+elseif strcmp(aoPattern,'square')
+    msk = ~(abs(kx) <= kc & abs(ky) <= kc);
 else
-    idx = abs(kx)<=kc & abs(ky)<=kc;
+    msk = 1-obj.trs.dm.modes.getTransferFunction(21,nK);
+    msk(msk<1e-2) = 0;
 end
-psd(idx) = 0;
 
-%5\ Define the atmospheric phase PSD
-sf_2D = tools.cov2sf(tools.psd2cov(psd,dk));
-
-
+%5\ Update the PSFR class
+obj.cov.psdFit= psd.*msk;
+obj.sf.Dfit = puakoTools.cov2sf(puakoTools.psd2cov(obj.cov.psdFit,dk));
 end
 
 

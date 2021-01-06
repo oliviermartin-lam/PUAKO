@@ -21,32 +21,65 @@ Change Record:     ::
 function res = estimateNoiseCovarianceFromTelemetry(trs,varargin)
 inputs = inputParser;
 inputs.addRequired('trs',@(x) isa(x,'telemetry'));
-inputs.addParameter('method','autocorrelation',@ischar);
+inputs.addParameter('flagNoisemethod','autocorrelation',@ischar);
 inputs.parse(trs,varargin{:});
-method = inputs.Results.method;
+method = inputs.Results.flagNoisemethod;
 
 res = [];
-%1\ HO WFS noise covariance matrix
-res.Cn_ho = getNoiseCovariance(trs.dm.com,'method',method,'rtf',trs.holoop.tf.ctf./trs.holoop.tf.wfs,'FSAMP',trs.holoop.freq);
-validInput = std(trs.dm.com,[],2)~=0;
-res.varn_ho = trace(res.Cn_ho(validInput,validInput))/nnz(validInput);
 
-%2\ TT WFS noise covariance matrix
-res.Cn_tt = getNoiseCovariance(trs.tipTilt.com,'method',method,'rtf',trs.ttloop.tf.ctf./trs.ttloop.tf.wfs,'FSAMP',trs.ttloop.freq);
-res.varn_tt = trace(res.Cn_tt);
+if strcmp(method,'theoretical')
+    % !!!! to be review !!!1
+    %Number of photons
+    
+    d = trs.dm.pitch;
+    ron = trs.wfs.ron;
+    wvl = trs.wfs.wavelength;
+    trs.wfs.pixelScale = 800; %??? how can we get this value from the fits header ?
+    psInRad = constants.arcsec2radian*trs.wfs.pixelScale/1e3;
+    
+    % Estimation of the number of photon
+    nph = trs.wfs.nph*trs.dm.pitch^2/trs.holoop.freq;
+    if strcmp(trs.aoMode,'NGS')
+        nph_tt = nph;
+        ron_tt = ron;
+        d_tt = d;
+        psInRad_tt = psInRad;
+        wvl_tt = wvl;
+    end
+    
+    % Noise variance in pix^2 between
+    varPix = (4*pi^2*(ron/nph)^2 + pi^2*1./nph )*(wvl/(2*pi*d*psInRad))^2; %nph in ADU... not ok I think
+    %Propagation through the reconstructor    
+    res.Cn_ho = varPix*trs.mat.R*trs.mat.R';    
+    validInput = find(trs.mat.R(:,100)~=0);
+    
+    varPix_tt = (4*pi^2*(ron_tt/nph_tt)^2 + pi^2*1./nph_tt )*(wvl_tt/(2*pi*d_tt*psInRad_tt))^2;
+    res.Cn_tt = varPix_tt*trs.mat.Rtt*trs.mat.Rtt';
+else
+    %1\ HO WFS noise covariance matrix
+    res.Cn_ho = getNoiseCovariance(trs.dm.com,'flagNoisemethod',method,'rtf',trs.holoop.tf.ctf./trs.holoop.tf.wfs,'FSAMP',trs.holoop.freq);
+    validInput = std(trs.dm.com,[],2)~=0;
+
+    %2\ TT WFS noise covariance matrix
+    res.Cn_tt = getNoiseCovariance(trs.tipTilt.com,'flagNoisemethod',method,'rtf',trs.ttloop.tf.ctf./trs.ttloop.tf.wfs,'FSAMP',trs.ttloop.freq);
+end
+
+res.std_ho = sqrt(trace(res.Cn_ho(validInput,validInput))/nnz(validInput))*1e9;
+res.std_tt = sqrt(trace(res.Cn_tt))*1e9;
+res.method = method;
 
 
 function Cnn = getNoiseCovariance(s,varargin)
 inputs = inputParser;
 inputs.addRequired('s',@isnumeric);
 inputs.addParameter('FSAMP',1e3,@isnumeric);
-inputs.addParameter('method','autocorrelation',@ischar);
+inputs.addParameter('flagNoisemethod','autocorrelation',@ischar);
 inputs.addParameter('nfit',1,@isnumeric);
 inputs.addParameter('nshift',1,@isnumeric);
 inputs.addParameter('rtf',1,@isnumeric);
 inputs.parse(s,varargin{:});
 
-method = inputs.Results.method;
+method = inputs.Results.flagNoisemethod;
 nfit = inputs.Results.nfit;
 nshift = inputs.Results.nshift;
 rtf = inputs.Results.rtf;
@@ -73,12 +106,18 @@ if strcmp(method,'interpolation') % Fitting the first samples of the auto-correl
     end
     Cnn = diag(Cnn);
     
+elseif strcmp(method,'autocorrelation_pos') % Deriving the temporal cross-correlation difference over 2xnshift
+    % If the turbulence is frozen over the  WFS frame rate, the difference of the autocorrelation and the 1-frame shifted correlation
+    % is the noise variance.    
+    ds_p  = s - circshift(s,[0,nshift]);
+    Cnn = s*ds_p'/nF;    
+    
 elseif strcmp(method,'autocorrelation') % Deriving the temporal cross-correlation difference over 2xnshift
     % If the turbulence is frozen over the  WFS frame rate, the difference of the autocorrelation and the 1-frame shifted correlation
     % is the noise variance.
     ds_n  = s - circshift(s,[0,-nshift]);
     ds_p  = s - circshift(s,[0,nshift]);
-    Cnn = 0.5*(s*ds_n' + s*ds_p')/nF;             
+    Cnn = 0.5*(s*ds_n' + s*ds_p')/nF;
     
 elseif strcmp(method,'rtf') % Adjusting the noise level through the noise rejection transfer function model
     fftS = fft(s,[],2); % we verified that std(s(k,:))^2 = sum(abs(fftS(k,:)).^2): Parseval

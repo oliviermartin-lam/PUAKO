@@ -43,7 +43,7 @@ fitL0   = inputs.Results.fitL0;
 %Fitting procedure
 FUN = @(x,xdata) (zernikeVarianceModel(x,xdata));
 X0  = D./[r0init,L0init];
-ub  = D./[0.01,D];
+ub  = D./[0.01,1];
 lb  = D./[1,100];
 
 if ~fitL0

@@ -1,20 +1,14 @@
 classdef prime < handle
     
     properties
-        % --------------------- Fitting process setup
+        % PSF Model
         psfr;
-        % PSF model Initial guess
-        psf;
-        im;
-        im_sky;
-        nStars;
+        statModes;
+        % --------------------- Fitting process setup        
         fov_sky;
         fov_fit;
         ron;
         modelFUN;
-        psf_init;
-        psf_ext;
-        im_init;
         x_init;
         lbounds;
         ubounds;
@@ -23,47 +17,38 @@ classdef prime < handle
         xdata;
         weightMap;
         normFactor;
-        nZernMode;        
+        jZernGain;                
         nGainsHO;
         idxR0;
         idxCn2;
-        idxDho;
+        idxDao;
         idxDtt;
         idxDal;
+        idxStatModes;
+        fitBg;
         x_final;
         x_prec;
+        x_fixed;
+        list_fixed;
         beta_;
-        J_;
-        fRes_;
+        JacobianMatrix_;
+        residualMap_;
+        rec_;
         % Stars Initial guess
+        idSrc;
         nParamStars;            % Number of stars parameters
-        p_nStars;               % Number of PSFs. Can Set to one if the PSF does not spatially vary in the FOV
         initStars;              % Stars parameters initial guess
         xStars;yStars;          % Astrometry initial guess
         fluxStars;              % Photometry initial guess
+        phasor;
         % --------------------- PSF outputs
-        psf_fit;
-        im_fit;
-        psf_3sig;
-        im_3sig;
-        eqm_init;
-        eqm_fit;
-        eqm_3sig;
-        bg_fit;
-        % --------------------- Stellar parameters outputs
-        xstars_fit;
-        xstars_prec;
-        catalog_fit;
-        % --------------------- Atmosphere parameters outputs
+        psf;
+        % --------------------- Retrieved outputs
         atm_fit;
-        r0_fit;
-        r0_prec;
-        Cn2_fit;
-        Cn2_prec;
-        % --------------------- AO parameters outputs
-        xao_fit;
-        xao_prec;
-        map_fit;
+        gains_fit;
+        catalog_fit;              
+        map_fit;   
+        flagError;
     end
     
     methods
@@ -72,97 +57,98 @@ classdef prime < handle
             inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
             inputs.addParameter('aoinit',[],@isnumeric);
             inputs.addParameter('aobounds',[],@isnumeric);
-            inputs.addParameter('MaxIter',100,@isnumeric);
-            inputs.addParameter('TolX',1e-10,@isnumeric);
-            inputs.addParameter('TolFun',1e-10,@isnumeric);
-            inputs.addParameter('MaxFunEvals',1e3,@isnumeric);
-            inputs.addParameter('InitDamping',1,@isnumeric);
+            inputs.addParameter('MaxIter',500,@isnumeric);
+            inputs.addParameter('TolX',1e-15,@isnumeric);
+            inputs.addParameter('TolFun',1e-15,@isnumeric);
+            inputs.addParameter('MaxFunEvals',5e3,@isnumeric);
+            inputs.addParameter('InitDamping',1e-5,@isnumeric);
             inputs.addParameter('display','iter',@ischar);
-            inputs.addParameter('weighting',false,@islogical);
+            inputs.addParameter('ron',0,@isnumeric);
+            inputs.addParameter('x_fixed',{[]},@iscell);
             inputs.addParameter('fitR0',true,@islogical);
             inputs.addParameter('fitCn2',false,@islogical);
             inputs.addParameter('fitGains',[true,true,true],@islogical);
-            inputs.addParameter('nZernMode',[],@isnumeric);
+            inputs.addParameter('fitBg',true,@islogical);
+            inputs.addParameter('statModesFunction','',@ischar);
+            inputs.addParameter('fitStatModes',[],@isnumeric);
+            inputs.addParameter('jZernGain',[],@isnumeric);
             inputs.addParameter('flagJacobian',false,@islogical);
+            inputs.addParameter('algorithm','trust-region-reflective ',@ischar);
+            inputs.addParameter('idSrc',1,@isnumeric);
+            inputs.addParameter('umax',5,@isnumeric);
             inputs.parse(psfr,varargin{:});
-            
+
             % Parse inputs            
-            obj.psfr = psfr;
-            obj.im_sky   = psfr.trs.cam.frame;
+            obj.psfr     = psfr;
             MaxIter      = inputs.Results.MaxIter;
             TolX         = inputs.Results.TolX;
             TolFun       = inputs.Results.TolFun;
+            algo         = inputs.Results.algorithm;
             MaxFunEvals  = inputs.Results.MaxFunEvals;
             InitDamping  = inputs.Results.InitDamping;
             display      = inputs.Results.display;
-            weighting    = inputs.Results.weighting;
+            obj.ron      = inputs.Results.ron;
             flagJacobian = inputs.Results.flagJacobian;
+            obj.list_fixed = inputs.Results.x_fixed;
+            obj.fitBg    = inputs.Results.fitBg;
+            obj.idSrc    = inputs.Results.idSrc;
             
-            %1\ Check the frame dimensions
-            obj.nStars  = psfr.trs.src.nSrc;
-            obj.fov_sky  = size(obj.im_sky,1);
+            %1\ Check the image dimensions
+            obj.fov_sky  = size(obj.psfr.trs.cam.image,1);
             obj.fov_fit  = size(obj.psfr.rec_,1);
             
             %2\ Normalize the observation and define the weight matrix
-            % Normalization
-            obj.normFactor = sum(obj.im_sky(:));
-            obj.ydata = obj.im_sky/obj.normFactor;
-            [~,~,obj.ron] = tools.getFlux(obj.im_sky);
-            % Weighting matrix
-            obj.weightMap         = 1./sqrt((max(obj.ydata,0)+obj.ron^2));
-            
-            if weighting
-                obj.weightMap = obj.weightMap.*(obj.ydata>0);
-            else
-                obj.weightMap = ones(size(obj.ydata)).*(obj.ydata>0);
+            obj.ydata       = obj.psfr.trs.cam.image(:,:,obj.idSrc);
+            obj.normFactor  = sum(obj.ydata(obj.ydata>0));
+
+            %3\ Define the weighting matrix            
+            obj.weightMap = obj.ydata~=0;
+            if obj.ron
+                obj.weightMap = obj.weightMap./sqrt(max(obj.ydata,0) + obj.ron^2);           
             end
-            obj.ydata = obj.ydata.*obj.weightMap;
+            obj.ydata = obj.ydata.*obj.weightMap/obj.normFactor;
+           
+
+            %4\ Initial guess and bounds        
+            obj = fittingSetup(obj,'aoinit',inputs.Results.aoinit,'aobounds',inputs.Results.aobounds,...
+                'fitR0',inputs.Results.fitR0,'fitCn2',inputs.Results.fitCn2,...
+                'fitGains',inputs.Results.fitGains,'jZernGain',inputs.Results.jZernGain,...
+                'statModesFunction',inputs.Results.statModesFunction,'fitStatModes',inputs.Results.fitStatModes,...
+                'fitBg',inputs.Results.fitBg,'umax',inputs.Results.umax);
             
-            %3\ Initial guess and bounds
-            aoinit_   = inputs.Results.aoinit;
-            aobounds_ = inputs.Results.aobounds;
+            %6\ Define options
+            obj.fitOption = optimoptions(@lsqcurvefit,'MaxIter',MaxIter,'TolX',TolX,'TolFun',TolFun,'MaxFunEvals',MaxFunEvals,...
+                'InitDamping',InitDamping,'Display',display,'SpecifyObjectiveGradient',flagJacobian,'Algorithm',algo);
             
-            obj = fittingSetup(obj,'aoinit',aoinit_,'aobounds',aobounds_,'fitR0',inputs.Results.fitR0,...
-                'fitCn2',inputs.Results.fitCn2,'fitGains',inputs.Results.fitGains,...
-                'nZernMode',inputs.Results.nZernMode);
-            
-            %4\ Define options
-            obj.fitOption = optimoptions(@lsqcurvefit,'MaxIter',MaxIter,...
-                'TolX',TolX,'TolFun',TolFun,'MaxFunEvals',MaxFunEvals,...
-                'InitDamping',InitDamping,'Display',display,'SpecifyObjectiveGradient',flagJacobian);
-            
-            %5\ Model definition
+            %7\ Model definition                                   
+            if obj.psfr.psf(obj.idSrc).Samp >=1
+                nX = obj.psfr.otf.nOtf;
+            else
+                nX = floor(obj.fov_fit/obj.psfr.psf(obj.idSrc).Samp);
+            end
+            % Define the fft phasor
+            Nx           = obj.psfr.otf.nOtf;
+            x            = 1:Nx;
+            [X,Y]        = meshgrid(x,x);
+            X            = -(X - (Nx/2+1))  * pi*1i/Nx;
+            Y            = -(Y - (Nx/2+1))  * pi*1i/Nx;            
+            obj.phasor   = @(dx,dy) exp((Y*dy+X*dx));
             obj.modelFUN = @(x,xdata) imageModel(x,xdata,obj);
+                      
+            %8\ Non-linear least-squares minimization          
+            if obj.flagError
+                return
+            end
             
-            %6\ Calculating the model image using initial guess
-            tic;
-            wMap         = obj.weightMap;
-            obj.weightMap= 1;
-            obj.im.rec_init  = obj.modelFUN(obj.x_init,obj.xdata);
-            obj.weightMap= wMap;
-            
-            %7\ Non-linear least-squares minimization
-            tic;
-            [beta,~,fRes,~,~,~,J] = lsqcurvefit(obj.modelFUN,obj.x_init,obj.xdata,...
-                obj.ydata,obj.lbounds,obj.ubounds,obj.fitOption);
-            
-            obj.beta_ = beta;
-            obj.J_    = J;
-            obj.fRes_ = fRes;
-            
-            %8\ Unpacking results + uncertainties
-            obj = updateResults(obj,beta,fRes,J);
-            
-            %9\ Get PSF statistics
-            %obj = obj.getPSFstatistics();
-            
-            %             fprintf('-----------------------------------------\n');
-            %             fprintf('Time for PSFR instantiation :\t %.3g s\n',obj.t_inst);
-            %             fprintf('Time for computing one PSF :\t %.3g s\n',obj.t_mod);
-            %             fprintf('Time for PSF best-fitting :\t %.3g s\n',obj.t_fit);
-            %             fprintf('Time for the whole process :\t %.3g s\n',obj.t_inst+obj.t_fit+obj.t_mod);
-            %             fprintf('-----------------------------------------\n');
-            
+            if strcmpi(algo,'LEVENBERG-MARQUARDT')
+                [obj.beta_ ,~,obj.residualMap_,~,~,~,obj.JacobianMatrix_] = lsqcurvefit(obj.modelFUN,obj.x_init,obj.xdata,obj.ydata,[],[],obj.fitOption);
+            else
+                [obj.beta_ ,~,obj.residualMap_,~,~,~,obj.JacobianMatrix_] = lsqcurvefit(obj.modelFUN,obj.x_init,obj.xdata,obj.ydata,obj.lbounds,obj.ubounds,obj.fitOption);
+            end
+        
+            %9\ Unpacking results + uncertainties
+            obj = updateResults(obj);
+                        
         end
     end
     

@@ -27,8 +27,10 @@ inputs.parse(nX,nY,pScale,varargin{:});
 %1D
 res.x1D = linspace(-1,1-~mod(nX,2)*2/nX,nX)*pScale;
 res.y1D = linspace(-1,1-~mod(nY,2)*2/nY,nY)*pScale;        
-[res.th1D,res.r1D] = cart2pol(res.x1D ,res.y1D);
-
 %2D
 [res.x2D,res.y2D] = meshgrid(res.x1D,res.y1D);
-[res.th2D,res.r2D] = cart2pol(res.x2D,res.y2D);
+
+if nX == nY
+    [res.th1D,res.r1D] = cart2pol(res.x1D ,res.y1D);
+    [res.th2D,res.r2D] = cart2pol(res.x2D,res.y2D);
+end

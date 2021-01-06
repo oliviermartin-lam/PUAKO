@@ -26,12 +26,12 @@ function wfe = errorBreakDown(obj,varargin)
 inputs = inputParser;
 inputs.addRequired('obj',@(x) isa(x,'psfReconstruction') || isa(x,'telemetry') || isa(x,'prime'));
 inputs.addParameter('display', false,@islogical);
-inputs.parse(obj);
+inputs.parse(obj,varargin{:});
 display= inputs.Results.display;
 
 %%
 if isa(obj,'prime')
-    
+    trs = obj.psfr.trs;
     % Get inputs
     wvl = obj.psfr.trs.cam.wavelength;
     otf   = obj.psfr.otf;
@@ -39,76 +39,59 @@ if isa(obj,'prime')
      notf  = size(otf.otfDL,1);
     u       = linspace(-1,1-~mod(notf,2)/notf,notf);
     S       = trapz(u,trapz(u,otf.otfDL));
-    r0src = obj.r0_fit;
+    r0src = obj.atm_fit.r0;
     r053 = r0src^(-5/3);
-    r053Init = obj.psfr.trs.res.seeing.r0^(-5/3);
+    r053Init = (obj.psfr.trs.res.seeing.r0*(obj.psfr.trs.cam.wavelength/0.5e-6)^1.2)^(-5/3);
     D = obj.psfr.trs.tel.Dcircle;
     
     %1\ Get the static error from the static map (NCPA)
-    srStatic = trapz(u,trapz(u,otf.otfStat))/S;
-    wfeStatic = tools.sr2wfe(srStatic,wvl);
+    srStatic = real(trapz(u,trapz(u,otf.otfStat)))/S;
+    wfeStatic = puakoTools.sr2wfe(srStatic,wvl);
     
     %2\ Get the fitting error by integrating the Fitting PSD
     srFit = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dfit*r053/r053Init)))/S;
-    wfeFit = tools.sr2wfe(srFit,wvl);
+    wfeFit = puakoTools.sr2wfe(srFit,wvl);
     
-    %3\ Get the aliasing error from the covariance matrix
-    if ~isempty(obj.idxDal)
-        gAl  = obj.xao_fit(obj.idxDal - length(obj.idxR0));
-    else
-        gAl = 1;
-    end
-    
-    srAl = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dal*r053/r053Init*gAl)))/S;
-    wfeAl = tools.sr2wfe(srAl,wvl);
+    %3\ Get the aliasing error from the covariance matrix 
+    srAl = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dal*r053/r053Init*obj.gains_fit.gAl)))/S;
+    wfeAl = puakoTools.sr2wfe(srAl,wvl);
     
     %4\ Get the noise errors
-    %4.1 HO WFS Noise
-    if ~isempty(obj.idxR0) && ~isempty(obj.idxDho)
-        gHO = obj.xao_fit(obj.idxDho- length(obj.idxR0));
-    else
-        gHO = 1;
-    end
-    
+    %4.1 HO WFS Noise    
     wfeNoise = 0;
-    msk = obj.trs.dm.pupilMask;   
-    cte = 1e9*sqrt(obj.psfr.trs.holoop.tf.pn/size(obj.psfr.res.noise.Cn_ho(msk,msk),1));
-    cn_tmp = obj.psfr_.res.noise.Cn_ho;
+    msk = obj.psfr.trs.dm.pupilMask;   
+    cte = 1e9*sqrt(obj.psfr.trs.holoop.tf.pn/size(obj.psfr.trs.res.noise.Cn_ho(msk,msk),1));
+    cn_tmp = obj.psfr.trs.res.noise.Cn_ho;
     
     for i=1:obj.nGainsHO-1
-        tmp = obj.psfr_.trs.mat.Hz{i}*obj.psfr.res.noise.Cn_ho*obj.psfr.trs.mat.Hz{i}';
-        wfeNoise  = wfeNoise + gHO(i)*trace(tmp);
+        tmp = obj.psfr.trs.mat.Hz{i}*obj.psfr.trs.res.noise.Cn_ho*obj.psfr.trs.mat.Hz{i}';
+        wfeNoise  = wfeNoise + obj.gains_fit.gAO(i)*trace(tmp);
         cn_tmp = cn_tmp - tmp;
     end
-    wfeNoise = sqrt(wfeNoise + gHO(end)*trace(cn_tmp(msk,msk)))*cte;
+    wfeNoise = sqrt(wfeNoise + obj.gains_fit.gAO(end)*trace(cn_tmp(msk,msk)))*cte;
     
     %4.2 TT WFS Noise
-    if ~isempty(obj.idxR0) && ~isempty(obj.idxDtt)
-        gTT = obj.xao_fit(obj.idxDtt - length(obj.idxR0));
-    else
-        gTT = 1;
-    end
-    wfeNoiseTT = sqrt(trace(gTT*obj.psfr.trs.ttloop.tf.pn*obj.psfr_.res.noise.Cn_tt))*1e9;
+    wfeNoiseTT = sqrt(trace(obj.gains_fit.gTT*obj.psfr.trs.ttloop.tf.pn*obj.psfr.trs.res.noise.Cn_tt))*1e9;
     
     %5\. AO Bandwidth errors
-    srLag    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sum(bsxfun(@times,sf.Dho_z,reshape(gHO,1,1,[])), 3))))/S;
-    wfeLag = sqrt(tools.sr2wfe(srLag,wvl)^2 - wfeNoise^2) ;
+    srLag    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sum(bsxfun(@times,sf.Dao_z,reshape(obj.gains_fit.gAO,1,1,[])), 3))))/S;
+    wfeLag = sqrt(puakoTools.sr2wfe(srLag,wvl)^2 - wfeNoise^2) ;
     
     %6.  Residual tip-tilt
-    srTT    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dtt*gTT)))/S;
-    wfeTT = sqrt(tools.sr2wfe(srTT,wvl)^2 - wfeNoiseTT^2);
+    srTT    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dtt*obj.gains_fit.gTT)))/S;
+    wfeTT = sqrt(puakoTools.sr2wfe(srTT,wvl)^2 - wfeNoiseTT^2);
     
     %7\  Anisoplanatism
     srAni = real(trapz(u,trapz(u,otf.Kani.*otf.otfDL)))/S;
-    wfeAni= tools.sr2wfe(srAni, wvl);
+    wfeAni= puakoTools.sr2wfe(srAni, wvl);
     
     SRcam = obj.psf.SR;
     dSRcam = obj.psf.dSR;
     srMar = srStatic.*srFit.*srAl.*srAni.*srTT.*srLag;
-    wfeTot = tools.sr2wfe(srMar,wvl);
+    wfeTot = puakoTools.sr2wfe(srMar,wvl);
     %%
 elseif isa(obj,'psfReconstruction')
-    
+    trs = obj.trs;
     % Get inputs
     wvl = obj.trs.cam.wavelength;
     otf   = obj.otf;
@@ -121,16 +104,16 @@ elseif isa(obj,'psfReconstruction')
     D = obj.trs.tel.Dcircle;
     
     %1\ Get the static error from the static map (NCPA)
-    srStatic = trapz(u,trapz(u,real(otf.otfStat)))/S;
-    wfeStatic = tools.sr2wfe(srStatic,wvl);
+    srStatic = real(trapz(u,trapz(u,otf.otfStat)))/S;
+    wfeStatic = puakoTools.sr2wfe(srStatic,wvl);
     
     %2\ Get the fitting error by integrating the Fitting PSD
     srFit =  trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dfit)))/S;
-    wfeFit = tools.sr2wfe(srFit,wvl);
+    wfeFit = puakoTools.sr2wfe(srFit,wvl);
     
     %3\ Get the aliasing error from the covariance matrix        
     srAl =  trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dal)))/S;
-    wfeAl = tools.sr2wfe(srAl,wvl);
+    wfeAl = puakoTools.sr2wfe(srAl,wvl);
     
     %4\ Get the noise errors
     %4.1 HO WFS Noise   
@@ -141,39 +124,38 @@ elseif isa(obj,'psfReconstruction')
     wfeNoiseTT = sqrt(trace(obj.trs.ttloop.tf.pn*obj.trs.res.noise.Cn_tt))*1e9;
     
     %5\. AO Bandwidth errors
-    srLag    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dho)))/S;
-    wfeLag = sqrt(tools.sr2wfe(srLag,wvl)^2 - wfeNoise^2) ;
+    srLag    = trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dao)))/S;
+    wfeLag = sqrt(puakoTools.sr2wfe(srLag,wvl)^2 - wfeNoise^2) ;
     
     %6.  Residual tip-tilt
     srTT    =  trapz(u,trapz(u,otf.otfDL.*exp(-0.5*sf.Dtt)))/S;
-    wfeTT = sqrt(tools.sr2wfe(srTT,wvl)^2 - wfeNoiseTT^2);
+    wfeTT = sqrt(puakoTools.sr2wfe(srTT,wvl)^2 - wfeNoiseTT^2);
     
     %7\  Anisoplanatism
     srAni =  trapz(u,trapz(u,otf.Kani.*otf.otfDL))/S;
-    wfeAni= tools.sr2wfe(srAni, wvl);
+    wfeAni= puakoTools.sr2wfe(srAni, wvl);
     
-    SRcam = obj.sky.SR;
-    dSRcam = obj.sky.dSR;   
     srMar = srStatic.*srFit.*srAl.*srAni.*srTT.*srLag;
-    wfeTot = tools.sr2wfe(srMar,wvl);
+    wfeTot = puakoTools.sr2wfe(srMar,wvl);
     %%
     
 elseif isa(obj,'telemetry')
+    trs = obj;
     wvl = obj.cam.wavelength;
 
     %1\ Get the static error from the static map (NCPA)
     wfeStatic = std(obj.tel.static_map(obj.tel.static_map~=0));
-    srStatic = tools.wfe2sr(wfeStatic,wvl);
+    srStatic = puakoTools.wfe2sr(wfeStatic,wvl);
 
     %2\ Get the fitting error 
     r0src = obj.res.seeing.r0*(obj.cam.wavelength/0.5e-6)^1.2;
     D = obj.tel.Dcircle;
     wfeFit = sqrt(0.3*(obj.dm.pitch/r0src)^(5/3))*wvl*1e9/2/pi;
-    srFit = tools.wfe2sr(wfeFit,wvl);
+    srFit = puakoTools.wfe2sr(wfeFit,wvl);
 
     %3\ Get the aliasing error 
     wfeAl = wfeFit/sqrt(3);
-    srAl= tools.wfe2sr(wfeAl,wvl);
+    srAl= puakoTools.wfe2sr(wfeAl,wvl);
 
     %4\ Get the noise errors
     %4.1 HO WFS Noise
@@ -186,39 +168,40 @@ elseif isa(obj,'telemetry')
     msk = obj.dm.pupilMask;
     wfeLag = 1e9*sqrt(sum(std(obj.rec.res(msk(:),:),[],2).^2/nnz(msk)));
     wfeLag = sqrt(wfeLag^2 - wfeNoise^2) ;
-    srLag = tools.wfe2sr(wfeLag,wvl);
+    srLag = puakoTools.wfe2sr(wfeLag,wvl);
 
     %6.  Residual tip-tilt
     wfeTT = 1e9*sqrt(sum(std(obj.tipTilt.slopes,[],2).^2));
+    srTTN = puakoTools.wfe2sr(wfeTT,wvl);
     wfeTT = sqrt(wfeTT^2 - wfeNoiseTT^2);
-    srTT = tools.wfe2sr(wfeTT,wvl);
+    srTT = puakoTools.wfe2sr(wfeTT,wvl);
     
     %7\  Anisoplanatism (need to implement theoretical equations)
     wfeAni = 0;
-    srAni = tools.wfe2sr(wfeAni,wvl);
+    srAni = puakoTools.wfe2sr(wfeAni,wvl);
     
-    [SRcam,dSRcam] = tools.getStrehl(obj.cam.frame,obj.tel.pupil,obj.cam.samp);
+    
     wfeTot = sqrt(sum(wfeStatic^2 + wfeFit^2 + wfeLag^2 ...
     + wfeNoise^2 + wfeAni^2 + wfeTT^2 +  wfeNoiseTT^2 + wfeAl^2));
-    srMar = tools.wfe2sr(wfeTot,wvl);
+    srMar = puakoTools.wfe2sr(wfeTot,wvl);
 else
     fprintf('Sorry, I do not recognize the format of the object you provide as entry\n');
 end
     
 %8\  Total residual
 SRho  = srStatic*srFit.*srAni*srLag*srAl;
-srPar = SRho/(1+tools.sr2wfe(srTT,wvl)^2*(2*pi*1e-9/wvl)^2) + (1-SRho)/(1+(D/r0src)^2);
+srPar = SRho/(1+puakoTools.sr2wfe(srTT,wvl)^2*(2*pi*1e-9/wvl)^2) + (1-SRho)/(1+(D/r0src)^2);
 
 % -----------------  DISPLAY
 if display
     fprintf('-------------------------------\n');
     fprintf('Wavelength\t\t%.3g micron\n', wvl*1e6)
-    fprintf('Strehl Image\t\t%.3g%s +/- %.3g\t\n',1e2*SRcam,'%',1e2*dSRcam);
+    fprintf('Strehl Image\t\t%.3g%s +/- %.3g\t\n',1e2*trs.sky.SR,'%',1e2*trs.sky.dSR);
     fprintf('Strehl Marechal \t%.3g%s\t\n',1e2*srMar,'%');
     fprintf('Strehl Parenti\t\t%.3g%s\t\n',1e2*srPar,'%');
     fprintf('Wavefront error (nm)\t%.4g\t\n',wfeTot);
     fprintf('-------------------------------\n');
-    fprintf('NCPA calibration\t%.4g\n',wfeStatic);
+    fprintf('Residual Static\t%.4g\n',wfeStatic);
     fprintf('Atmospheric Fitting\t%.4g\n',wfeFit);
     fprintf('-------------------------------\n');
     fprintf('Servo-lag\t\t%.4g\n',wfeLag);
@@ -233,7 +216,8 @@ if display
     fprintf('-------------------------------\n');
 end
 
-wfe.sr_tot      = srMar;
+wfe.sr_mar      = srMar;
+wfe.sr_par      = srPar;
 wfe.wfe_tot     = wfeTot;
 wfe.wfe_ncpa    = wfeStatic;
 wfe.wfe_fit     = wfeFit;

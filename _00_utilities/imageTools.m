@@ -29,7 +29,7 @@ classdef imageTools < handle
                 else
                     deb = round((ncrop-dim) / 2 + 1);
                     fin = round((ncrop+dim) / 2);
-                    out(deb(1):fin(1), deb(1):fin(1), iFrame) = input(:,:,iFrame);
+                    out(deb(1):fin(1), deb(2):fin(2), iFrame) = input(:,:,iFrame);
                 end
             end
         end
@@ -151,7 +151,7 @@ classdef imageTools < handle
             end
             
             if npixnoncorr
-                frame_suppl = tools.createDeadPixFrame(tmp);
+                frame_suppl = puakoTools.createDeadPixFrame(tmp);
                 nSup        = size(frame_suppl,1);
                 %Frame concatenation
                 new_frame                     = zeros(nDeadPix+nSup,10,2);
@@ -215,7 +215,7 @@ classdef imageTools < handle
                             end
                         end
                     end
-                    imagerot = tools.crop(imagerot,size(im_origin));
+                    imagerot = puakoTools.crop(imagerot,size(im_origin));
             end
         end
         
@@ -268,8 +268,8 @@ classdef imageTools < handle
             end
             
             % Define input meshgrid
-            notf_x = size(otf,1);
-            notf_y = size(otf,2);
+            notf_y = size(otf,1);
+            notf_x = size(otf,2);
             if mod(notf_x,2)==0
                 u1D = (-notf_x/2:1:notf_x/2-1)*2/notf_x;
             else
@@ -321,7 +321,15 @@ classdef imageTools < handle
             yo       = linspace(-1,1,nRes(2));
             [Xi,Yi]  = meshgrid(xi,yi);
             [Xo,Yo]  = meshgrid(xo,yo);
-            out      = interp2(Xi,Yi,P,Xo,Yo,method);
+            if ndims(P) == 3
+                nIm = size(P,3);
+                out = zeros(nRes(1),nRes(1),nIm);
+                for k=1:nIm
+                    out(:,:,k) = interp2(Xi,Yi,P(:,:,k),Xo,Yo,method);
+                end
+            else
+                out  = interp2(Xi,Yi,P,Xo,Yo,method);
+            end
         end
         
         function im_ = translateImage(image,dX,val)
@@ -333,16 +341,16 @@ classdef imageTools < handle
             [nx,ny] = size(image);
             % nx -> rows
             % ny -> columns
-            im_ = padarray(image,floor([nx,ny]/2),'both');
+            im_ = image;%padarray(image,floor([nx,ny]/2),'both');
             % Derives the fourier phasor
             dx = dX(1);
             dy = dX(2);
             [u,v] = freqspace(size(im_),'meshgrid');
             phasor = exp(-1i*pi*(u*dy+v*dx));
             % Translates the image
-            otf = tools.psf2otf(im_);
+            otf = puakoTools.psf2otf(im_);
             otf = otf/max(otf(:));
-            im_ = tools.otf2psf(otf.*phasor);
+            im_ = puakoTools.otf2psf(otf.*phasor);
             im_ = im_/sum(im_(:))*sum(image(:));
             % Empty zone filling
             if any(size(im_)>size(image))
@@ -355,46 +363,61 @@ classdef imageTools < handle
                 im_(:,iyi) = val;
                 im_(:,iyf) = val;
                 % Cropping
-                im_ = tools.crop(im_,[nx,ny]);
+                im_ = puakoTools.crop(im_,[nx,ny]);
             end
             
         end
         
         function [imCor,otf_lr] = recenterPSF(psf,overSampling)
             flux          = sum(psf(:));
-            [npsfx,npsfy] = size(psf);
+            [npsfy,npsfx] = size(psf);
             npsfx2        = npsfx*overSampling;
             npsfy2        = npsfy*overSampling;
             
             % Get the high-resolution PSF
             if overSampling > 1
-                psf_hr = tools.interpolateOtf(psf,npsfx2);
+                psf_hr = puakoTools.interpolateOtf(psf,[npsfx2,npsfy2]);
             else
                 psf_hr = psf;
             end
             % Get the max value
             mx        = max(psf_hr(:));
-            [idx,idy] = find(psf_hr == mx);
+            [idy,idx] = find(psf_hr == mx);
             idx = idx(1);
             idy = idy(1);
             dx        = floor(npsfx2/2-idx)+1;
             dy        = floor(npsfy2/2-idy)+1;
             if (dx~=0) | (dy~=0)
                 % Get the OTF
-                otf_hr = tools.psf2otf(psf_hr);
+                otf_hr = puakoTools.psf2otf(psf_hr);
                 % Apply the Phasor
-                [u,v]     = freqspace(length(otf_hr),'meshgrid');
-                fftPhasor = exp(-1i.*pi.*(u*dy+v*dx));
+                [u,v]     = freqspace(size(otf_hr),'meshgrid');
+                fftPhasor = exp(-1i.*pi.*(u*dx+v*dy));
                 otf_hr    = otf_hr.*fftPhasor;
                 % Get the PSF low-resolution
-                imCor  = tools.otf2psf(otf_hr);
-                imCor  = tools.interpolateOtf(imCor,npsfx);
+                imCor  = puakoTools.otf2psf(otf_hr);
+                imCor  = puakoTools.interpolateOtf(imCor,[npsfx,npsfy]);
                 imCor  = flux*imCor/sum(imCor(:));
-                otf_lr = tools.psf2otf(imCor);
+                otf_lr = puakoTools.psf2otf(imCor);
             else
                 imCor = psf;
-                otf_lr = tools.psf2otf(imCor);
+                otf_lr = puakoTools.psf2otf(imCor);
             end
-        end                
+        end
+        
+        function [x0, y0] = cog(im, threshold)
+            
+            %% Check for Threshold
+            if nargin == 1
+            else
+                ind = im < threshold;
+                im(ind) = 0.0;
+            end
+            % Calculate Centre of Gravity
+            [rc, cc] = ndgrid(1:size(im, 1), 1:size(im, 2));
+            Mt = sum(im(:));
+            x0 = sum(im(:) .* rc(:))/Mt;
+            y0 = sum(im(:) .* cc(:))/Mt;
+        end
     end
 end

@@ -44,12 +44,14 @@ inputs.addParameter('fitL0',true,@islogical);
 inputs.addParameter('flagBest',false,@islogical);
 inputs.addParameter('flagMedian',false,@islogical);
 inputs.addParameter('initR0',[],@isnumeric);
-inputs.addParameter('D1',11.25,@isnumeric);
-inputs.addParameter('D2',0,@isnumeric);
+inputs.addParameter('D1',9,@isnumeric);
+inputs.addParameter('D2',2.65,@isnumeric);
 inputs.addParameter('badModesList',[],@isnumeric);
 inputs.addParameter('aoMode','NGS',@ischar);
-inputs.addParameter('nMin',4,@isnumeric);
-inputs.addParameter('nMax',120,@isnumeric);
+inputs.addParameter('jMin',4,@isnumeric);
+inputs.addParameter('jMax',120,@isnumeric);
+inputs.addParameter('mskModes',true(size(dmModes,2)),@islogical);
+inputs.addParameter('mskPup',true(size(dmModes,1)),@islogical);
 inputs.parse(dmModes,dmCom,tel,Cn,varargin{:});
 
 %1\ Parsing inputs
@@ -58,41 +60,28 @@ flagBest = inputs.Results.flagBest;
 flagMedian = inputs.Results.flagMedian;
 initR0  = inputs.Results.initR0;
 D1       = inputs.Results.D1;
-D2       = inputs.Results.D2;
-nMin     = inputs.Results.nMin;
-nMax     = inputs.Results.nMax;
+jMin     = inputs.Results.jMin;
+jMax     = inputs.Results.jMax;
+validZernikeModes = jMin:jMax;
+mskModes = inputs.Results.mskModes;
+mskPup = inputs.Results.mskPup;
 
-%2\ Estimating the Zernike modes rms values
-%2.1 Defining the Zernike modes over the real telescope pupil
-nRes   = sqrt(size(dmModes,1));
-validZernikeModes = nMin:nMax;
-zern_tel  = zernike(validZernikeModes,nRes);
-z_modes = zern_tel.modes;
+%% 2\ Estimating the Zernike modes rms values
+%2.1 Get the Projection matrix command -> truncated Zernike
+%dmModes = dmModes(:,mskModes(:));
+u2z = dmCommandsToZernike(dmModes,jMin,jMax,'mskPup',mskPup,'mskModes',mskModes);
 
-% %2.2 Defining the Zernike modes over the truncated pupil
-% if D1 ~=0
-%     % truncated pupil definition    
-%     res = getGridCoordinates(nRes,nRes,tel.Ddm/2);   
-%     P         = double(logical(tools.interpolate(tel.pupil,nRes)));
-%     P_trunc = P.*(res.r2D<=D1/2).*(res.r2D>D2/2);
-%     % define Zernike modes over the truncated pupil
-%     zern_trunc   = zernike(validZernikeModes,nRes,'pupil',P_trunc);    
-%     % Calculate the projection matrix
-%     zTrunc_modes= zern_trunc.modes;
-%     proj   = pinv(zTrunc_modes'*zTrunc_modes)*zTrunc_modes'*z_modes;
-% else
-%     proj = 1;
-%     D1 = tel.Dcircle;
-% end
-
-%3\ Process the telemetry to estimate the Zernike modes
-%3.1 Actuators commands to Zernike
-u2z      = pinv(z_modes)*dmModes;
+%2.2 Actuators commands to Zernike
+dmCom = dmCom(mskModes(:),:);
+dmCom = bsxfun(@minus,dmCom,mean(dmCom,2)); %temporal mean removal
 z_coefs = u2z*dmCom;
-%3.2. Denoising
+
+%2.3. Denoising
+Cn = Cn(mskModes(:),mskModes(:));
 z_noise_var = diag(u2z*Cn*u2z');
 z_coefs_var   = std(z_coefs,[],2).^2 - z_noise_var;
-%3.3. Dealiasing
+
+%2.4. Dealiasing
 %polynomial model of the variance excess due to the aliasing
 pp = [0.99893514401310313 7.7066823200766521e-4,...
     -1.8233364176012401e-4 1.9037601227012146e-5 -2.7620673576089771e-7];
@@ -103,7 +92,7 @@ for k=1:numel(pp)
 end
 z_coefs_var = z_coefs_var./aliasExcess';
 
-%3.4. Bad modes list
+%2.5. Bad modes list
 if isempty(inputs.Results.badModesList)
     nValid = numel(validZernikeModes);
     badModesList = ones(1,nValid);
@@ -117,17 +106,17 @@ if isempty(inputs.Results.badModesList)
     badModesList(intersect(validZernikeModes,wbm)) = 0;
     badModesList(mz <=1) = 0;
     badModesList = logical(badModesList);
+    
+    % Removing bad modes
+    validZernikeModes = validZernikeModes(badModesList);
+    z_coefs_var = z_coefs_var(badModesList);
+    z_noise_var = z_noise_var(badModesList);
 end
 
-% Removing bad modes
-validZernikeModes = validZernikeModes(badModesList);
-z_coefs_var = z_coefs_var(badModesList);
-z_noise_var = z_noise_var(badModesList);
-
-%4\ Model-fitting the Zernike modes
+%% 3\ Model-fitting the Zernike modes
 if flagBest % Multiple fitting and keep the most precise one    
     % instantiation
-    nM   = nMin:nMax/4; iN   = length(nM);
+    nM   = jMin:jMax/4; iN   = length(nM);
     r0   = zeros(1,iN);dr0  = zeros(1,iN);
     L0   = zeros(1,iN);dL0  = zeros(1,iN);
     % loop over
@@ -171,6 +160,8 @@ else    % Single fitting over the validZernikeModes modes
     [r0,L0,dr0,dL0] = fitZernikeVariance(z_coefs_var,validZernikeModes,D1,'fitL0',fitL0,'initR0',initR0);
     jindex = validZernikeModes;
 end
+
+
 
 %5\ Gathering outputs
 varargout{1} = r0;

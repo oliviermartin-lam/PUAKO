@@ -17,7 +17,7 @@ Change Record:     ::
 ------------HEADER END----------------
 %}
 
-function uout = selectActuators(uin,D1,D2,varargin)
+function [uout,mskModes] = selectActuators(uin,D1,D2,varargin)
 inputs = inputParser;
 inputs.addRequired('wvf',@isnumeric);
 inputs.addRequired('D1',@isnumeric);
@@ -31,35 +31,11 @@ inputs.parse(uin,D1,D2,varargin{:});
 nX = inputs.Results.nX;
 nY = inputs.Results.nY;
 actuPitch = inputs.Results.pitch;
-pScale = (nX-1)*actuPitch/2;
+pScale = ((nX-1)+0.54)*actuPitch/2;
 %1D DM actuators position for which x1D(nX/2+1) = 0 and y1D(nY/2+1) = 0;
 res = getGridCoordinates(nX,nY,pScale);
 r2D = res.r2D;
 
 %2\ Define DM actuators masks
-maskDM349 = r2D <= 11.25/2;
-maskDMtrun = r2D < D1/2 & r2D > D2/2;
-nActu_trunc = nnz(maskDMtrun);
-%3\ Define the index of the 320 actuators to be selected
-uin = uin(std(uin,[],2)~=0,:);
-k349 = 0;
-ktrunc = 0;
-idxTrunc = zeros(1,nActu_trunc);
-for iAct = 1:nX
-    for jAct = 1:nY
-        if maskDM349(iAct,jAct)
-            k349 = k349+1;
-            if maskDMtrun(iAct,jAct)
-                ktrunc = ktrunc + 1;
-                idxTrunc(ktrunc) = k349;
-            end
-        end
-    end
-end
-%4\ Select the actuators 
-uout = zeros(nX^2,size(uin,2));
-id = find(maskDMtrun);
-for iAct = 1:nActu_trunc
-    uout(id(iAct),:) = uin(idxTrunc(iAct),:);
-end
-   
+mskModes = r2D < D1/2 & r2D > D2/2;
+uout = bsxfun(@times,uin,mskModes(:));

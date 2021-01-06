@@ -3,49 +3,84 @@ classdef fittingTools < handle
     methods (Static)
         
         % PSF-fitting
-        function [out,imFit,beta] = findStellarParameters(im,psfModel,initParam)
-            %1. Model
-            nIm          = size(im);
-            stellarModel = @(x,xdata) tools.stellarFieldModel(x,xdata,nIm);
-            normFactor   = sum(im(:));
-            im_tmp = im/normFactor;
-            nParam = length(initParam);
-            %2. Fitting options and initial guess
+        function [out,imFit,iminit] = findStellarParameters(im,psf,x0,varargin)
+            inputs = inputParser;
+            inputs.addRequired('im',@isnumeric);
+            inputs.addRequired('psf',@isnumeric);
+            inputs.addRequired('x0',@isnumeric);
+            inputs.addParameter('ron',0,@isnumeric);
+            inputs.addParameter('u_',[],@isnumeric);
+            inputs.addParameter('v_',[],@isnumeric);
+            inputs.addParameter('umax',5,@isnumeric);
+            inputs.addParameter('MaxIter',3e2,@isnumeric);
+            inputs.addParameter('TolFun',1e-18,@isnumeric);
+            inputs.addParameter('MaxFunEvals',1e3,@isnumeric);
+            inputs.addParameter('TolX',1e-18,@isnumeric);
+            inputs.parse(im,psf,x0,varargin{:});
+            ron     = inputs.Results.ron;
+            u_      = inputs.Results.u_;
+            v_      = inputs.Results.v_;
+            umax    = inputs.Results.umax;
+            MaxIter = inputs.Results.MaxIter;
+            TolFun  = inputs.Results.TolFun;
+            MaxFunEvals = inputs.Results.MaxFunEvals;
+            TolX = inputs.Results.TolX;
+
+
+            %1. DATA
+            ydata       = im;
+            normFactor  = sum(ydata(ydata>0));
+            weightMap   = ydata~=0;
+            if ron
+                weightMap = weightMap./sqrt(max(ydata,0) + ron^2);
+            end
+            ydata = ydata.*weightMap/normFactor;
+            nIm   = size(im,1);
+                   
+            %2. MODEL
+            
+            %2.1 Model definition
+            model = @(x,xdata) weightMap.*puakoTools.stellarFieldModel(x,xdata,nIm,'u_',u_,'v_',v_);
+            nParam = length(x0);
+            out     = [];
+            imFit   = [];
+            beta    = [];
+            %2.2 Fitting options and initial guess
+            
             if mod(nParam,3)
                 % maybe a background estimation
                 if mod(nParam-1,3)
                     fprintf('You must provide a valid initial guess vector, which should size 3*nS or 3*nS +1 with nS the number of stars\n');
                     return
-                    out = [];
-                    imFit = [];
-                    beta = [];
+                    out   = 0;
+                    imFit = 0;
+                    beta  = 0;
                 else
-                    nS    = (length(initParam)-1)/3;
-                    lX    = initParam(1:2*nS) - 2;
-                    uX    = initParam(1:2*nS) + 2;
+                    nS    = (length(x0)-1)/3;
+                    lX    = x0(1:2*nS) - umax;
+                    uX    = x0(1:2*nS) + umax;
                     lF    = zeros(1,nS);
-                    uF    = 10*ones(1,nS);
-                    lb    = [lX,lF,-5*std(im_tmp(:))];
-                    ub    = [uX,uF,5*std(im_tmp(:))];
+                    uF    = 1e20*ones(1,nS);
+                    lb    = [lX,lF,-1e20];
+                    ub    = [uX,uF,1e20];
                 end
             else
                 % no background estimation
-                nS    = (length(initParam))/3;
-                lX    = initParam(1:2*nS) - 2;
-                uX    = initParam(1:2*nS) + 2;
-                lF    = zeros(1,nS);
-                uF    = 10*ones(1,nS);
+                nS    = (length(x0))/3;
+                lX    = x0(1:2*nS) - umax;
+                uX    = x0(1:2*nS) + umax;
+                lF    = 0;
+                uF    = 1e20;
                 lb    = [lX,lF];
                 ub    = [uX,uF];
             end
             
-            opt = optimoptions(@lsqcurvefit,'MaxIter',3e2,...
-                'TolX',1e-10,'TolFun',1e-10,'MaxFunEvals',3e2,...
+            opt = optimoptions(@lsqcurvefit,'MaxIter',MaxIter,...
+                'TolX',TolX,'TolFun',TolFun,'MaxFunEvals',MaxFunEvals,...
                 'InitDamping',1,'Display','iter');
             
             %3. Fitting procedure
-            [beta,~,R,~,~,~,J] = lsqcurvefit(stellarModel,initParam,psfModel,...
-                im_tmp,lb,ub,opt);
+            [beta,~,R,~,~,~,J] = lsqcurvefit(model,x0,psf,ydata,lb,ub,opt);
             
             %4. Unpacking results
             xS = beta(1:nS);
@@ -58,9 +93,9 @@ classdef fittingTools < handle
             dY    = dbeta(nS+1:2*nS);
             dF    = dbeta(2*nS+1:3*nS)*normFactor;
             
-            % Concatenating results
-            
-            out = zeros(6,nS);
+            %6. Concatenating results
+        
+            out = zeros(nParam,nS);
             for iS=1:nS
                 out(1,iS) = xS(iS);
                 out(2,iS) = yS(iS);
@@ -68,6 +103,9 @@ classdef fittingTools < handle
                 out(4,iS) = dX(iS);
                 out(5,iS) = dY(iS);
                 out(6,iS) = dF(iS);
+                if mod(nParam,3)
+                    out(7,iS) = beta(end)*normFactor;
+                end
             end
             
             % Fitted model
@@ -76,10 +114,30 @@ classdef fittingTools < handle
             else
                 res = [xS,yS,fS,beta(end)*normFactor];
             end
-            imFit = stellarModel(res,psfModel);
+            
+            imFit =  puakoTools.stellarFieldModel(res,psf,nIm);
+            
+            if nargout > 2
+                iminit = puakoTools.stellarFieldModel(x0,psf,nIm);
+            end
+            
         end
         
-        function out = stellarFieldModel(pStars,psfModel,nIm)
+        function out = stellarFieldModel(pStars,dataModel,nIm,varargin)
+            inputs = inputParser;
+            inputs.addRequired('pStars',@isnumeric);
+            inputs.addRequired('dataModel',@isnumeric);
+            inputs.addRequired('nIm',@isnumeric);
+            inputs.addParameter('u_',[],@isnumeric);
+            inputs.addParameter('v_',[],@isnumeric);
+            inputs.parse(pStars,dataModel,nIm,varargin{:});
+            
+            u_ = inputs.Results.u_;
+            v_ = inputs.Results.v_;
+            
+            if isempty(u_)
+                flagOtf = false;
+            end
             
             nParam = length(pStars);
             if ~mod(nParam,3)                
@@ -96,14 +154,22 @@ classdef fittingTools < handle
                 bg = pStars(end);
             end
             
-            out = 0*psfModel;
+            out = 0*dataModel;
             for iS = 1:nS
                 % Translate the PSF
-                psf_i = tools.translateImage(psfModel,[xS(iS),yS(iS)]);
+                if flagOtf
+                    % Calculate the fourier phasor
+                    phasor  = exp(-2i*pi*( u_*xS(iS) + v_*yS(iS) ));
+                    % Get the PSF
+                    psf_i   = tools.otf2psf(dataModel.*phasor);
+                else
+                    psf_i = puakoTools.translateImage(dataModel,[xS(iS),yS(iS)]);
+                    %psf_i = imtranslate(psfModel,[xS(iS),yS(iS)]);
+                end
                 % Update the image and Flux scaling:
                 out = out + psf_i*fS(iS);
             end
-            out = tools.crop(out,nIm) + bg;
+            out = puakoTools.crop(out,nIm) + bg;
         end
         
         function out = multipleImage(x,im)
@@ -130,30 +196,42 @@ classdef fittingTools < handle
             %nx      = 2*nx;
             %ny      = 2*ny;
             out     = zeros(nx,ny);
-            otf     = tools.psf2otf(im);
-            %otf     = tools.interpolateOtf(otf,nx);
+            otf     = puakoTools.psf2otf(im);
             otf     = otf/max(otf(:));
             [u,v]   = freqspace([nx ny],'meshgrid');
             for i=1:n
                 yi    = yloc(i);
                 xi    = xloc(i);
                 fftPhasor = exp(-1i*pi*(u*xi + v*yi));
-                map_i = tools.otf2psf(otf.*fftPhasor);
+                map_i = puakoTools.otf2psf(otf.*fftPhasor);
                 % Adding images
                 out = out + flux(i)*map_i/sum(map_i(:));
             end
         end
         
         % Gaussian/Moffat-fitting
-        function out = gaussian(x,xdata)
-            % ------- Grabbing parameters ---------%
-            I0 = x(1);          %Amplitude
-            ax = x(2);          %x spreading
-            ay = x(3);          %y-spreading
-            th = x(4)*pi/180.;  %rotation
-            x0 = x(5);          %x-shift
-            y0 = x(6);          %y-shift
+        function out = gaussian(x,xdata,flagSymetric)
+            if nargin < 3
+                flagSymetric = false;
+            end
             
+            if flagSymetric
+                I0 = x(1);          %Amplitude
+                ax = x(2);          %x spreading
+                ay = x(2);          %y-spreading
+                x0 = x(3);          %x-shift
+                y0 = x(4);          %y-shift
+            else
+                % ------- Grabbing parameters ---------%
+                I0 = x(1);          %Amplitude
+                ax = x(2);          %x spreading
+                ay = x(3);          %y-spreading
+                th = x(4)*pi/180.;  %rotation
+                x0 = x(5);          %x-shift
+                y0 = x(6);          %y-shift
+            end
+            
+            %FWHM : 2*sqrt(2*log(2))*sigma
             % ------- Including shifts ---------
             X     = xdata{1};
             Y     = xdata{2};
@@ -168,16 +246,30 @@ classdef fittingTools < handle
             out = I0.*exp(-0.5*((Xr./ax).^2 + (Yr./ay).^2) );
         end
         
-        function out = moffat(x,xdata,norm)
+        function out = moffat(x,xdata,flagSymetric)
+            
+            if nargin < 3
+                flagSymetric = false;
+            end
             
             % ------- Grabbing parameters ---------%
-            I0 = x(1);          %Amplitude
-            ax = x(2);          %x spreading
-            ay = x(3);          %y-spreading
-            be = x(4);          %center slope
-            th = x(5);          %rotation
-            x0 = x(6);          %x-shift
-            y0 = x(7);          %y-shift
+            if flagSymetric
+                I0 = x(1);          %Amplitude
+                ax = x(2);          %x spreading
+                ay = x(2);          %y-spreading
+                be = x(3);          %center slope
+                x0 = x(4);          %x-shift
+                y0 = x(5);          %y-shift
+                th = 0;
+            else
+                I0 = x(1);          %Amplitude
+                ax = x(2);          %x spreading
+                ay = x(3);          %y-spreading
+                be = x(4);          %center slope
+                th = x(5);          %rotation
+                x0 = x(6);          %x-shift
+                y0 = x(7);          %y-shift
+            end
             
             % ------- Including shifts ---------
             X     = xdata{1};
@@ -192,19 +284,57 @@ classdef fittingTools < handle
             % Moffat expression
             out = I0.*(1. + (Xr./ax).^2 + (Yr./ay).^2).^(-be);
             %Normalization
-            if exist('norm','var')
-                out = out*(be-1)/pi/ax/ay;
+            %if exist('norm','var')
+            %    out = out*(be-1)/pi/ax/ay;
+            %end
+        end
+        
+        function out = multiAnalyticIsoplanatic(x,xdata,type,flagSymetric)
+            if nargin < 4
+                flagSymetric = false;
+            end
+            
+            if strcmp(type,'gaussian')
+                f   = @(x,xdata) puakoTools.gaussian(x,xdata,flagSymetric);
+                if flagSymetric
+                    nfix = 1;
+                else
+                    nfix = 3;
+                end
+                nS  = (length(x)-nfix)/3;
+                xfix= x(1+nS:nfix+nS);
+                fS  =  x(1:nS);
+                xS  = x(nfix+1 + nS:nfix+1+2*nS);
+                yS  = x(nfix+1 + 2*nS:end);
+            else
+                f = @(x,xdata) puakoTools.moffat(x,xdata,flagSymetric);
+                if flagSymetric
+                    nfix = 2;
+                else
+                    nfix = 4;
+                end
+                nS  = (length(x)-nfix)/3;
+                xfix= x(1+nS:nfix+nS);
+                fS  = x(1:nS);
+                xS  = x(nfix+1+nS:nfix+2*nS);
+                yS  = x(nfix+1+2*nS:end);
+            end
+            
+            
+            out = zeros(size(xdata,1));
+            for k=1:nS
+                out = out + f([fS(k) xfix,xS(k) yS(k)],xdata);
             end
         end
         
-        function out = multiAnalytical(x,xdata,type)
+        function out = multiAnalyticAniso(x,xdata,type)
             
             if strcmp(type,'gaussian')
-                f = @(x,xdata) tools.gaussian(x,xdata);
-                nG  = length(x)/6;
+                f = @(x,xdata) puakoTools.gaussian(x,xdata);              
+                nG  = length(x)/6;                
             else
-                f = @(x,xdata) tools.moffat(x,xdata);
-                nG  = length(x)/7;
+                f = @(x,xdata) puakoTools.moffat(x,xdata);
+                nG  = length(x)/7;                
             end
             
             

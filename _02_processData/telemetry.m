@@ -8,7 +8,10 @@ classdef telemetry < handle
         path_trs;
         path_imag;
         path_calibration;
+        path_ncpa;
         path_massdimm;
+        path_dark;
+        path_sky;
         fitsHdr;
         % ------------------- SYSTEM/OBSERVING CONFIGURATION -------------------- %
         aoMode;
@@ -27,47 +30,109 @@ classdef telemetry < handle
         mat;                                                           % structure containing system matrices
         holoop;                                                       % structure containing HO loop configuration
         ttloop;                                                        % structure containing TT loop configuration       
-        res = [];                                                            % structure containing processing results
+        res = [];                                                      % structure containing processing results
+        sky;                                                            % psfStats class for the sky image
     end
     
     methods
         
-        function obj = telemetry(obj_name,folder_data,path_trs,path_imag,fitsHdr)
+        function obj = telemetry(obj_name,path_trs,path_imag,folder_paths,fitsHdr,varargin)
             inputs = inputParser;           
-            inputs.addRequired('obj_name', @iscell);
-            inputs.addRequired('folder_data', @isstruct);
+            inputs.addRequired('obj_name', @(x) isa(x,'cell') || isa(x,'aoSystem'));
             inputs.addRequired('path_trs', @ischar);
             inputs.addRequired('path_imag', @ischar);
-            inputs.addRequired('fitsHdr', @isstruct);
-            inputs.parse(obj_name,folder_data,path_trs,path_imag,fitsHdr);
-            
-            %1\ Parsing inputs
-            obj.obj_name = obj_name{1};
-            obj.date         = inputs.Results.folder_data.date;
-            obj.path_trs    = inputs.Results.path_trs;
-            obj.path_imag      = inputs.Results.path_imag;
-            obj.path_calibration   = inputs.Results.folder_data.calibration;
-            obj.path_massdimm = inputs.Results.folder_data.massdimm;
-            obj.fitsHdr = fitsHdr;
-                  
-            %2\ Initialize system structures
+            inputs.addRequired('folder_paths', @isstruct);
+            inputs.addRequired('fitsHdr', @iscell);
+            inputs.addParameter('path_ncpa', [], @ischar);
+            inputs.addParameter('resolution',150,@isnumeric);
+            inputs.addParameter('flagNoisemethod','autocorrelation',@ischar);
+            inputs.addParameter('badModesList',[],@isnumeric);
+            inputs.addParameter('jMin',4,@isnumeric);
+            inputs.addParameter('jMax',120,@isnumeric);
+            inputs.addParameter('fitL0',true,@islogical);
+            inputs.addParameter('flagBest',false,@islogical);
+            inputs.addParameter('flagMedian',false,@islogical);
+            inputs.addParameter('wvl',0.5e-6,@isnumeric);
+            inputs.addParameter('D1',9,@isnumeric);
+            inputs.addParameter('D2',2.65,@isnumeric);            
+            inputs.addParameter('getImageOnly',false,@islogical);            
+            inputs.addParameter('flagGaussian',false,@islogical);            
+            inputs.addParameter('flagMoffat',false,@islogical);      
+            inputs.addParameter('flagBrightestStar',false,@islogical);
+            inputs.parse(obj_name,path_trs,path_imag,folder_paths,fitsHdr,varargin{:});
+                                
+            %1\ Initialization
             obj = initializeStructures(obj);
+            obj.cam.resolution = inputs.Results.resolution;
             
-            %3\ Restoring Calibrated data            
-            obj = restoreCalibratedData(obj);
+            %2\ Parsing inputs
+            fitL0           = inputs.Results.fitL0;
+            flagBest        = inputs.Results.flagBest;
+            flagMedian      = inputs.Results.flagMedian;
+            D1              = inputs.Results.D1;
+            D2              = inputs.Results.D2;
+            badModesList    = inputs.Results.badModesList;
+            jMin            = inputs.Results.jMin;
+            jMax            = inputs.Results.jMax;
+            noiseMethod     = inputs.Results.flagNoisemethod;
+            getImageOnly    = inputs.Results.getImageOnly;
+            flagMoffat      = inputs.Results.flagMoffat;
+            flagGaussian    = inputs.Results.flagGaussian;
+            flagBrightestStar = inputs.Results.flagBrightestStar;
             
-            %3\ Restoring AO telemetry            
-            obj = restoreKeckTelemetry(obj);
-                       
-            %4\ Model temporal transfer functions
-            obj = modelTransferFunctions(obj);
+            if isa(obj_name,'aoSystem')                
+                obj     = fromAoSystemClassToTelemetry(obj,obj_name);      
+                aoMode  = obj.aoMode;
+            else
+                obj.obj_name        = obj_name{1};
+                obj.path_trs        = inputs.Results.path_trs;
+                obj.path_imag       = inputs.Results.path_imag;
+                obj.path_calibration= inputs.Results.folder_paths.calibration;
+                obj.path_ncpa       = inputs.Results.path_ncpa;
+                obj.path_massdimm   = inputs.Results.folder_paths.massdimm;
+                obj.path_dark       = inputs.Results.folder_paths.dark;
+                obj.path_sky        = inputs.Results.folder_paths.sky;
+                obj.fitsHdr         = fitsHdr;                                              
+                obj.date            = cell2mat(obj.fitsHdr(strcmp(obj.fitsHdr(:,1),'DATE-OBS'),2));
+                obj.date            = strjoin(split(obj.date,'-'),'');
+                
+                % detect if the laser was turned on
+                if strcmp(cell2mat(obj.fitsHdr(contains(obj.fitsHdr(:,1),'LSPROP'),2)),'no')
+                    obj.aoMode = 'NGS';
+                else
+                    obj.aoMode = 'LGS';
+                end
+                    
+                
+                %3\ Restoring Calibrated data
+                obj = restoreCalibratedData(obj,getImageOnly);
+                
+                %4\ Restoring and processing NIRC2 images
+                obj = processDetectorImage(obj,'flagMoffat',flagMoffat,'flagGaussian',flagGaussian,'flagBrightestStar',flagBrightestStar);
+                
+                if ~getImageOnly
+                    %5\ Restoring AO telemetry
+                    obj = restoreKeckTelemetry(obj);
+                    
+                    %6\ Getting MASS/DIMM data
+                    obj = restoreMassDimmMaunaKea(obj);
+                end
+            end
             
-            %5\ Restoring and processing NIRC2 images
-            obj = restoreDetectorImage(obj);
-            
-            %6\ Getting MASS/DIMM data         
-            obj = restoreMassDimmMaunaKea(obj);           
-            
+            if ~getImageOnly
+                %7\ Estimate the number of photons
+                obj = estimateNumberPhotons(obj);
+                
+                %8\ Model temporal transfer functions
+                obj = modelTransferFunctions(obj);
+                
+                %9\ Data processing: noise estimation
+                obj.res.noise = estimateNoiseCovarianceFromTelemetry(obj,'flagNoisemethod',noiseMethod);
+                
+                %10\ Data processing: seeing estimation
+                [obj.res.seeing, obj.res.zernike] = estimateSeeingFromTelemetry(obj,'fitL0',fitL0,'flagBest',flagBest,'flagMedian',...
+                    flagMedian,'D1',D1,'D2',D2,'badModesList',badModesList,'aoMode',obj.aoMode,'jMin',jMin,'jMax',jMax);
+            end
         end      
         
         %% Zernike decomposition
@@ -110,26 +175,26 @@ classdef telemetry < handle
         end
         
          %% Noise standard-deviation in nm
-        function [stdn_ho,stdn_tt] = getNoiseSTD(obj,method)
+        function [stdn_ho,stdn_tt] = getNoiseSTD(obj,flagNoisemethod)
             if nargin < 2
-                method = 'autocorrelation';
+                flagNoisemethod = 'autocorrelation';
             end
-            if isstring(method) || ischar(method)
-                method = {method};
+            if isstring(flagNoisemethod) || ischar(flagNoisemethod)
+                flagNoisemethod = {flagNoisemethod};
             end
                      
             nObj = numel(obj);
-            nMethod = numel(method);
+            nMethod = numel(flagNoisemethod);
             
             stdn_ho = zeros(nMethod,nObj);
             stdn_tt = zeros(nMethod,nObj);            
             for kObj=1:nObj
                 obj(kObj).res.noise = [];
                 for jM = 1:nMethod
-                    tmp = estimateNoiseCovarianceFromTelemetry(obj(kObj),'method',method{jM});
+                    tmp = estimateNoiseCovarianceFromTelemetry(obj(kObj),'method',flagNoisemethod{jM});
                     stdn_ho(jM,kObj) = sqrt(tmp.varn_ho)*1e9;
                     stdn_tt(jM,kObj) = sqrt(tmp.varn_tt)*1e9;
-                    obj(kObj).res.noise(jM).method = method{jM};
+                    obj(kObj).res.noise(jM).method = flagNoisemethod{jM};
                     obj(kObj).res.noise(jM).varn_ho = stdn_ho(jM,kObj);
                     obj(kObj).res.noise(jM).varn_tt = stdn_tt(jM,kObj);
                     obj(kObj).res.noise(jM).Cn_ho   = tmp.Cn_ho;

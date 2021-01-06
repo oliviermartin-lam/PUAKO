@@ -20,7 +20,8 @@ if any(Cmm(:))
         case 'Vii'
             % Autocorrelation of the pupil expressed in pupil
             nPx        = sqrt(size(modes,1));
-            pupExtended= fftshift(tools.enlargePupil(double(pupil),2));
+            n = 2;
+            pupExtended= fftshift(puakoTools.enlargePupil(double(pupil),n));
             fftPup     = fft2(pupExtended);
             conjPupFft = conj(fftPup);
             G          = fftshift(real(fft2(fftPup.*conjPupFft)));
@@ -37,7 +38,7 @@ if any(Cmm(:))
             buf = zeros(size(pupExtended));            
             for k=1:nModes
                 Mk   = reshape(M(:,k),nPx,nPx);
-                Mk   = fftshift(tools.enlargePupil(Mk,2));
+                Mk   = fftshift(puakoTools.enlargePupil(Mk,n));
                 % Vii computation
                 Vk   = real(fft2(Mk.^2.*pupExtended).*conjPupFft) - abs(fft2(Mk.*pupExtended)).^2;
                 % Summing modes into dm basis
@@ -49,7 +50,7 @@ if any(Cmm(:))
         case 'Uij'
             % Autocorrelation of the pupil expressed in pupil
             nPx        = sqrt(size(modes,1));
-            pupExtended= fftshift(tools.enlargePupil(double(pupil),2));
+            pupExtended= fftshift(puakoTools.enlargePupil(double(pupil),2));
             fftPup     = fft2(pupExtended);
             conjPupFft = conj(fftPup);
             G          = fftshift(real(fft2(fftPup.*conjPupFft)));
@@ -63,11 +64,11 @@ if any(Cmm(:))
             %Double loops on modes
             for i=1:nm
                 Mi = reshape(modes(:,i),nPx,nPx);
-                Mi = tools.enlargePupil(Mi,2);
+                Mi = puakoTools.enlargePupil(Mi,2);
                 for j=1:i
                     %Getting modes + interpolation to twice resolution
                     Mj    = reshape(modes(:,j),nPx,nPx);
-                    Mj   = tools.enlargePupil(Mj,2);
+                    Mj   = puakoTools.enlargePupil(Mj,2);
                     term1 = real(fft2(Mi.*Mj.*pupExtended).*conjPupFft);
                     term2 = real(fft2(Mi.*pupExtended).*conj(fft2(Mj.*pupExtended)));
                     % Uij computation
@@ -81,8 +82,14 @@ if any(Cmm(:))
             otf  = G.*exp(-0.5*dphi);
             
         case 'zonal'            
+            % Phase covariance function
+            dk = sqrt(size(modes,1));
+            idxvalid = logical(puakoTools.interpolate(pupil,dk));
+            Cphi = modes*Cmm*modes';
+            dphi = 2*(diag(Cphi) - Cphi);
             % Grabbing the valid actuators positions in meters           
-            loc  = pointWiseLocation(D,D/(dk-1),true(dk));
+            dp = D/(dk-1);
+            loc  = pointWiseLocation(D,dp,idxvalid(:));
             %OTF sampling
             nPh  = round(D/dp+1);
             %nU1d = 2*nPh;
@@ -91,33 +98,36 @@ if any(Cmm(:))
             % Determining couples of point with the same separation
             [shiftX,shiftY] = mkotf_indpts(nU1d,nPh,u1D,loc,dp);
             % WF Amplitude
-            amp0 = ones(nnz(idxValid),1);
+            amp0 = ones(nnz(idxvalid(:)),1);
             
             %% Long-exposure OTF
-            otf = mkotf(shiftX,shiftY,nU1d,amp0,dp,-0.5*Cmm);
-            otf_dl = mkotf(shiftX,shiftY,nU1d,amp0,dp,0*Cmm);
-            %Interpolation
-            if size(otf,1) ~=npsf
-                otf      = tools.interpolateOtf(otf,npsf);
-                otf_dl = tools.interpolateOtf(otf_dl,npsf);
+            otf = mkotf(shiftX,shiftY,nU1d,amp0,dp,-0.5*Cphi(idxvalid(:),idxvalid(:)));
+            G = mkotf(shiftX,shiftY,nU1d,amp0,dp,0*Cphi);           
+            if size(otf,1) ~= npsf
+                otf = puakoTools.interpolateOtf(otf,npsf);
+                G= puakoTools.interpolateOtf(G,npsf);
             end
-            otf = otf./otf_dl.*(otf_dl/max(otf_dl(:))>1e-5);
-            otf      = otf./max(otf(:));
-            dphi = -2*log(otf);
+            otf = otf./max(otf(:));
+            G = G/max(G(:));            
+            otf(G>1e-5) = otf(G>1e-5)./G(G>1e-5);
     end
 else
     % Diffraction-limit case
+    nPx        = sqrt(size(modes,1));
+    pupExtended= fftshift(puakoTools.enlargePupil(double(pupil),2));
+    fftPup     = fft2(pupExtended);
+    conjPupFft = conj(fftPup);
+    G          = fftshift(real(fft2(fftPup.*conjPupFft)));
     G    = G./max(G(:));
     otf  = G;
     dphi = 0*G;
 end
 % Interpolation of the OTF => determination of the PSF fov
 otf = otf.*(G>1e-5);
-otf = otf./max(otf(:));
 if size(otf,1) ~= npsf
-    otf = tools.interpolateOtf(otf,npsf);
+    otf = puakoTools.interpolateOtf(otf,npsf);
     otf = otf./max(otf(:));
-    dphi= tools.interpolateOtf(dphi,npsf);
+    dphi= puakoTools.interpolateOtf(dphi,npsf);
 end
 
 %Zonal calculation

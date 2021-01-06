@@ -15,28 +15,29 @@ Change Record:     ::
 ------------HEADER END----------------
 %}
 
-function [sf_2D,Cal] = computeAliasingPhaseStructureFunction(psfr,varargin)
+function obj = computeAliasingPhaseStructureFunction(obj,varargin)
 inputs = inputParser;
-inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
+inputs.addRequired('obj',@(x) isa(x,'psfReconstruction'));
 inputs.addParameter('aoPattern','circle',@ischar)
-inputs.parse(psfr,varargin{:});
+inputs.parse(obj,varargin{:});
 aoPattern = inputs.Results.aoPattern;
 
 %1\ Parsing inputs
-atm = psfr.trs.atm;
-D = psfr.trs.tel.Ddm;
-nActu = psfr.trs.dm.nActuators;
-nT = psfr.otf.nTimes;
-ts = 1/psfr.trs.holoop.freq;
-td = psfr.trs.holoop.lat;
-varn = psfr.trs.res.noise.varn_ho*(2*pi/psfr.trs.cam.wavelength)^2;
-g = psfr.trs.holoop.gain;
+atm = obj.trs.atm;
+D = obj.trs.tel.Ddm;
+nActu = obj.trs.dm.nActuators;
+nT = obj.otf.nTimes;
+ts = 1/obj.trs.holoop.freq;
+td = obj.trs.holoop.lat;
+varn = (2*pi*obj.trs.res.noise.std_ho*1e-9/obj.trs.cam.wavelength)^2;
+g = obj.trs.holoop.gain;
+d = obj.trs.dm.pitch;
 
 
 %2\ Define the frequency space
 nK   = 2*nActu-1;
 [kx,ky] = freqspace(nK,'meshgrid');
-kc  = 0.5*(nActu-1)/D;
+kc  = 1/(2*d);
 kx = kx*kc + 1e-7;
 ky = ky*kc + 1e-7;
 k   = hypot(kx,ky);
@@ -45,8 +46,8 @@ dk  = 2*kc/nK; % Pixel scale
 
 %3\ Define the atmospheric phase PSD
 fr0 = atm.weights;
-L0 = psfr.trs.res.seeing.L0;
-r0 = psfr.trs.res.seeing.r0*(psfr.trs.cam.wavelength/0.5e-6)^1.2;
+L0 = obj.trs.res.seeing.L0;
+r0 = obj.trs.res.seeing.r0*(obj.trs.cam.wavelength/0.5e-6)^1.2;
 [vlx,vly] = pol2cart(atm.windDirection,atm.windSpeed);
 cst = (24*gamma(6/5)/5)^(5/6)*(gamma(11/6)^2/(2*pi^(11/3)));
 Wphi = r0^(-5./3)*cst*(k.^2 + 1/L0.^2).^(-11./6);
@@ -74,9 +75,9 @@ for kLayer = 1:atm.nLayer
     idx = abs(fi) <1e-7;
     fi(idx) = 1e-8.*sign(fi(idx));
     % Get the AO closed-loop transfer function
-    tfwfs    = wfsTransferFunction(fi,psfr.trs.holoop.freq);
-    tflag = delayTransferFunction(fi,psfr.trs.holoop.freq,psfr.trs.holoop.lat*psfr.trs.holoop.freq);
-    tfservo = servoTransferFunction(fi,psfr.trs.holoop.freq,psfr.trs.holoop.tf.num,psfr.trs.holoop.tf.den);
+    tfwfs    = wfsTransferFunction(fi,obj.trs.holoop.freq);
+    tflag = delayTransferFunction(fi,obj.trs.holoop.freq,obj.trs.holoop.lat*obj.trs.holoop.freq);
+    tfservo = servoTransferFunction(fi,obj.trs.holoop.freq,obj.trs.holoop.tf.num,obj.trs.holoop.tf.den);
     tfol = tfwfs.*tfservo.*tflag;
     h1 = h1 + fr0(kLayer)*tfol./(1+tfol);
 end
@@ -108,21 +109,27 @@ end
 psd(isnan(psd)) = 0;
 %5.4 Filter the uncorrected part
 if strcmp(aoPattern,'circle')
-    idx = k<=kc;
+    msk = k<=kc;
+elseif strcmp(aoPattern,'square')
+    msk = abs(kx)<=kc & abs(ky)<=kc;
 else
-    idx = abs(kx)<=kc & abs(ky)<=kc;
-end
-psd = real(cst*psd.*pistonRemoval(D,d,kx,0,0)).*idx;
-psd_pad = tools.enlargePupil(psd,nT);
-covMap = real(tools.psd2cov(psd_pad,dk));
-sf_2D =  tools.cov2sf(covMap);
-
-if size(sf_2D,1)~=psfr.otf.nOtf
-    sf_2D = tools.interpolateOtf(sf_2D,psfr.nOtf);
+    msk = 1-obj.trs.dm.modes.getTransferFunction(21,nK);
+    msk(msk<1e-2) = 0;
+    msk = 1-msk;
 end
 
+psd = real(cst*psd.*pistonRemoval(D,d,kx,0,0)).*msk;
+psd_pad = puakoTools.enlargePupil(psd,nT);
+covMap = real(puakoTools.psd2cov(psd_pad,dk));
+
+
+% Update the PSFR class structure
+obj.sf.Dal =  puakoTools.cov2sf(covMap);
+if size(obj.sf.Dal,1)~=obj.otf.nOtf
+    obj.sf.Dal = puakoTools.interpolateOtf(obj.sf.Dal,obj.otf.nOtf);
+end
 if nargout > 1
-    Cal = tools.covMap2Matrix(real(tools.psd2cov(psd,dk)),round(nK/2),round(nK/2));
+    obj.cov.Cal = puakoTools.covMap2Matrix(real(puakoTools.psd2cov(psd,dk)),round(nK/2),round(nK/2));
 end
 
 function PR = pistonRemoval(D,d,f,mi,ni)
