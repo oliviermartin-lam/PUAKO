@@ -47,6 +47,10 @@ im_fit      = zeros(nRes,nRes,6,nObj);
 umax        = 5;
 ron         = 0;
 mode        = 'petal';
+aoinit      = [];
+ao_lb = [0,0,0,-2.2705e+03*ones(1,36)];
+ao_ub = [0.01^(-5/3),1e2,1e2,2.2705e+03*ones(1,36)];
+aobounds = [ao_lb;ao_ub];
 
 for kObj = 1:nObj
    
@@ -55,101 +59,105 @@ for kObj = 1:nObj
     % --------------  Running PRIME on the brightest isolated PSF
     
     %1.1. With petal modes
-    p.getPrimePSF('objname',objname{kObj},'resolution',150,'fov',170,'ron',300,...
-        'fitStatModes',1:6,'statModesFunction','petal','flagBrightestStar',true,...
-        'fitGains',[true,true,false],'umax',umax);
-    prime_param_petal(:,kObj) = p.psfp.x_final;
-    % petal-prime psf
-    p.psfp.weightMap = 1;
-    psf_prime_petal  = imageModel([1,0,0,p.psfp.x_final(4:end-1),0],p.psfp.xdata,p.psfp);
-    psf_prime_petal  = psf_prime_petal/sum(psf_prime_petal(:));
+%     p.getPrimePSF('objname',objname{kObj},'resolution',150,'fov',170,'ron',300,...
+%         'fitStatModes',1:6,'statModesFunction','petal','flagBrightestStar',true,...
+%         'fitGains',[true,true,false],'umax',umax);
+%     prime_param_petal(:,kObj) = p.psfp.x_final;
+%     % petal-prime psf
+%     p.psfp.weightMap = 1;
+%     psf_prime_petal  = imageModel([1,0,0,p.psfp.x_final(4:end-1),0],p.psfp.xdata,p.psfp);
+%     psf_prime_petal  = psf_prime_petal/sum(psf_prime_petal(:));
+%     
+%     %1.2. With piston modes    
     
-    %1.2. With piston modes
     p.getPrimePSF('objname',objname{kObj},'resolution',150,'fov',170,'ron',300,...
         'fitStatModes',1:36,'statModesFunction','piston','flagBrightestStar',true,...
-        'fitGains',[true,true,false],'umax',umax);
-    prime_param_piston(:,kObj) = p.psfp.x_final;
-    % piston-prime psf
-    p.psfp.weightMap %initial guess
-    idMax                   = find(p.trs.src(iBin).F == max(p.trs.src(iBin).F));
-    idMin                   = find(p.trs.src(iBin).F ~= max(p.trs.src(iBin).F));
-    pos_init                = -[abs(p.trs.src(iBin).y(idMin) - p.trs.src(iBin).y(idMax)),0,abs(p.trs.src(iBin).x(idMin) - p.trs.src(iBin).x(idMax)),0];
-    pos_init                = 1e3*pos_init/p.trs.cam.pixelScale;   
-    [yref,xref]             = find(im_bin == max(im_bin(:)));
-    pos_init                = (pos_init - (p.trs.cam.resolution/2+1 - [yref*ones(1,2),xref*ones(1,2)]));
-    photo_init              = [0.5,0.5];
-    bg_init                 = 0;
-    psf_prime_piston  = imageModel([1,0,0,p.psfp.x_final(4:end-1),0],p.psfp.xdata,p.psfp);
-    psf_prime_piston  = psf_prime_piston/sum(psf_prime_piston(:));
+        'fitGains',[true,true,false],'umax',umax,'aoinit',aoinit,'aobounds',aobounds);
     
-    %1.3 Get the PSFR, PRIME-calibrated PSF and Gl 569 A
-    psf_psfr   = puakoTools.crop(p.psfr.rec_,p.trs.cam.resolution);
-    psf_psfr   = psf_psfr/sum(psf_psfr(:));
-    % on-axis extracted PSF
-    psf_Gl569A = p.trs.cam.image;
-    psf_Gl569A = psf_Gl569A/sum(psf_Gl569A(:));
-
-    % ------------------------- FIT THE BINARY IMAGE 
-    %Select the binary image
-    p.trs.cam.resolution    = nRes;
-    p.trs                   = processDetectorImage(p.trs,'flagGaussian',false,'flagMoffat',false,'ron',ron,'umax',3);
-    im_bin                  = p.trs.cam.image(:,:,iBin);
-    im_fit(:,:,1,kObj)      = im_bin;
+    aoinit = p.psfp.x_final(4:end-1);
     
-    %initial guess
-    idMax                   = find(p.trs.src(iBin).F == max(p.trs.src(iBin).F));
-    idMin                   = find(p.trs.src(iBin).F ~= max(p.trs.src(iBin).F));
-    pos_init                = -[abs(p.trs.src(iBin).y(idMin) - p.trs.src(iBin).y(idMax)),0,abs(p.trs.src(iBin).x(idMin) - p.trs.src(iBin).x(idMax)),0];
-    pos_init                = 1e3*pos_init/p.trs.cam.pixelScale;   
-    [yref,xref]             = find(im_bin == max(im_bin(:)));
-    pos_init                = (pos_init - (p.trs.cam.resolution/2+1 - [yref*ones(1,2),xref*ones(1,2)]));
-    photo_init              = [0.5,0.5];
-    bg_init                 = 0;
-
-    % Double Gaussian-components fit
-    p.trs.sky(iBin).umax    = umax;
-    x0                      = [photo_init,3,3,0,pos_init,bg_init];
-    p.trs.sky(iBin)         = p.trs.sky(iBin).getGaussian(x0);
-    im_fit(:,:,2,kObj)      = p.trs.sky(iBin).GaussianImage;
-    SEP_BIN(1,kObj)         = hypot(diff(p.trs.sky(iBin).catalogs.gaussian.x),diff(p.trs.sky(iBin).catalogs.gaussian.y));
-    DMAG_BIN(1,kObj)        = 2.5*log10(max(p.trs.sky(iBin).catalogs.gaussian.flux)/min(p.trs.sky(iBin).catalogs.gaussian.flux));
-    ANG_BIN(1,kObj)         = 180 - 180/pi*atan(diff(p.trs.sky(iBin).catalogs.gaussian.x)/diff(p.trs.sky(iBin).catalogs.gaussian.y));
-  
-    % PSF-R   
-    [pp,im_fit(:,:,3,kObj),iminit] = puakoTools.findStellarParameters(im_bin,psf_psfr,[pos_init,photo_init,0],'umax',umax,'ron',ron);
-    y                       = pp(1,:);
-    x                       = pp(2,:);
-    flux                    = pp(3,:);
-    SEP_BIN(2,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
-    DMAG_BIN(2,kObj)        = 2.5*log10(max(flux)/min(flux));
-    ANG_BIN(2,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
-    
-    % PETAL-PRIME PSF
-    [pp,im_fit(:,:,4,kObj)] = puakoTools.findStellarParameters(im_bin,psf_prime_petal,[pos_init,photo_init,0],'umax',umax,'ron',ron);
-    y                       = pp(1,:);
-    x                       = pp(2,:);
-    flux                    = pp(3,:);
-    SEP_BIN(3,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
-    DMAG_BIN(3,kObj)        = 2.5*log10(max(flux)/min(flux));
-    ANG_BIN(3,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
-    
-    % PISTON-PRIME PSF
-    [pp,im_fit(:,:,5,kObj)] = puakoTools.findStellarParameters(im_bin,psf_prime_piston,[pos_init,photo_init,0],'umax',umax,'ron',ron);
-    y                       = pp(1,:);
-    x                       = pp(2,:);
-    flux                    = pp(3,:);
-    SEP_BIN(4,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
-    DMAG_BIN(4,kObj)        = 2.5*log10(max(flux)/min(flux));
-    ANG_BIN(4,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
-    
-    %Gl 569 A          
-    [pp,im_fit(:,:,6,kObj)] = puakoTools.findStellarParameters(im_bin,psf_Gl569A,[pos_init,photo_init,0],'umax',umax,'ron',ron);
-    y                       = pp(1,:);
-    x                       = pp(2,:);
-    flux                    = pp(3,:);
-    SEP_BIN(5,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
-    DMAG_BIN(5,kObj)        = 2.5*log10(max(flux)/min(flux));
-    ANG_BIN(5,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
+     prime_param_piston(:,kObj) = p.psfp.x_final;
+%     % piston-prime psf
+%     p.psfp.weightMap %initial guess
+%     idMax                   = find(p.trs.src(iBin).F == max(p.trs.src(iBin).F));
+%     idMin                   = find(p.trs.src(iBin).F ~= max(p.trs.src(iBin).F));
+%     pos_init                = -[abs(p.trs.src(iBin).y(idMin) - p.trs.src(iBin).y(idMax)),0,abs(p.trs.src(iBin).x(idMin) - p.trs.src(iBin).x(idMax)),0];
+%     pos_init                = 1e3*pos_init/p.trs.cam.pixelScale;   
+%     [yref,xref]             = find(im_bin == max(im_bin(:)));
+%     pos_init                = (pos_init - (p.trs.cam.resolution/2+1 - [yref*ones(1,2),xref*ones(1,2)]));
+%     photo_init              = [0.5,0.5];
+%     bg_init                 = 0;
+%     psf_prime_piston  = imageModel([1,0,0,p.psfp.x_final(4:end-1),0],p.psfp.xdata,p.psfp);
+%     psf_prime_piston  = psf_prime_piston/sum(psf_prime_piston(:));
+%     
+%     %1.3 Get the PSFR, PRIME-calibrated PSF and Gl 569 A
+%     psf_psfr   = puakoTools.crop(p.psfr.rec_,p.trs.cam.resolution);
+%     psf_psfr   = psf_psfr/sum(psf_psfr(:));
+%     % on-axis extracted PSF
+%     psf_Gl569A = p.trs.cam.image;
+%     psf_Gl569A = psf_Gl569A/sum(psf_Gl569A(:));
+% 
+%     % ------------------------- FIT THE BINARY IMAGE 
+%     %Select the binary image
+%     p.trs.cam.resolution    = nRes;
+%     p.trs                   = processDetectorImage(p.trs,'flagGaussian',false,'flagMoffat',false,'ron',ron,'umax',3);
+%     im_bin                  = p.trs.cam.image(:,:,iBin);
+%     im_fit(:,:,1,kObj)      = im_bin;
+%     
+%     %initial guess
+%     idMax                   = find(p.trs.src(iBin).F == max(p.trs.src(iBin).F));
+%     idMin                   = find(p.trs.src(iBin).F ~= max(p.trs.src(iBin).F));
+%     pos_init                = -[abs(p.trs.src(iBin).y(idMin) - p.trs.src(iBin).y(idMax)),0,abs(p.trs.src(iBin).x(idMin) - p.trs.src(iBin).x(idMax)),0];
+%     pos_init                = 1e3*pos_init/p.trs.cam.pixelScale;   
+%     [yref,xref]             = find(im_bin == max(im_bin(:)));
+%     pos_init                = (pos_init - (p.trs.cam.resolution/2+1 - [yref*ones(1,2),xref*ones(1,2)]));
+%     photo_init              = [0.5,0.5];
+%     bg_init                 = 0;
+% 
+%     % Double Gaussian-components fit
+%     p.trs.sky(iBin).umax    = umax;
+%     x0                      = [photo_init,3,3,0,pos_init,bg_init];
+%     p.trs.sky(iBin)         = p.trs.sky(iBin).getGaussian(x0);
+%     im_fit(:,:,2,kObj)      = p.trs.sky(iBin).GaussianImage;
+%     SEP_BIN(1,kObj)         = hypot(diff(p.trs.sky(iBin).catalogs.gaussian.x),diff(p.trs.sky(iBin).catalogs.gaussian.y));
+%     DMAG_BIN(1,kObj)        = 2.5*log10(max(p.trs.sky(iBin).catalogs.gaussian.flux)/min(p.trs.sky(iBin).catalogs.gaussian.flux));
+%     ANG_BIN(1,kObj)         = 180 - 180/pi*atan(diff(p.trs.sky(iBin).catalogs.gaussian.x)/diff(p.trs.sky(iBin).catalogs.gaussian.y));
+%   
+%     % PSF-R   
+%     [pp,im_fit(:,:,3,kObj),iminit] = puakoTools.findStellarParameters(im_bin,psf_psfr,[pos_init,photo_init,0],'umax',umax,'ron',ron);
+%     y                       = pp(1,:);
+%     x                       = pp(2,:);
+%     flux                    = pp(3,:);
+%     SEP_BIN(2,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
+%     DMAG_BIN(2,kObj)        = 2.5*log10(max(flux)/min(flux));
+%     ANG_BIN(2,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
+%     
+%     % PETAL-PRIME PSF
+%     [pp,im_fit(:,:,4,kObj)] = puakoTools.findStellarParameters(im_bin,psf_prime_petal,[pos_init,photo_init,0],'umax',umax,'ron',ron);
+%     y                       = pp(1,:);
+%     x                       = pp(2,:);
+%     flux                    = pp(3,:);
+%     SEP_BIN(3,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
+%     DMAG_BIN(3,kObj)        = 2.5*log10(max(flux)/min(flux));
+%     ANG_BIN(3,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
+%     
+%     % PISTON-PRIME PSF
+%     [pp,im_fit(:,:,5,kObj)] = puakoTools.findStellarParameters(im_bin,psf_prime_piston,[pos_init,photo_init,0],'umax',umax,'ron',ron);
+%     y                       = pp(1,:);
+%     x                       = pp(2,:);
+%     flux                    = pp(3,:);
+%     SEP_BIN(4,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
+%     DMAG_BIN(4,kObj)        = 2.5*log10(max(flux)/min(flux));
+%     ANG_BIN(4,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
+%     
+%     %Gl 569 A          
+%     [pp,im_fit(:,:,6,kObj)] = puakoTools.findStellarParameters(im_bin,psf_Gl569A,[pos_init,photo_init,0],'umax',umax,'ron',ron);
+%     y                       = pp(1,:);
+%     x                       = pp(2,:);
+%     flux                    = pp(3,:);
+%     SEP_BIN(5,kObj)         = hypot(diff(x),diff(y))*p.trs.cam.pixelScale;
+%     DMAG_BIN(5,kObj)        = 2.5*log10(max(flux)/min(flux));
+%     ANG_BIN(5,kObj)         = 180 - 180/pi*atan(diff(x)/diff(y));
     
 
     elasped_time = toc(t0)
@@ -157,12 +165,12 @@ end
 
 %
 path_res = '/home/omartin/Projects/KVS/_results/binaryTests/';
-fitswrite(prime_param_piston,[path_res,'Gl569A_prime_param_piston.fits'])
-fitswrite(prime_param_piston,[path_res,'Gl569A_prime_param_petal.fits'])
-fitswrite(SEP_BIN,[path_res,'Gl569_separationInMas_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
-fitswrite(DMAG_BIN,[path_res,'Gl569_differentialFlux_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
-fitswrite(ANG_BIN,[path_res,'Gl569_angle_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
-fitswrite(im_fit,[path_res,'Gl569_imfit_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
+% fitswrite(prime_param_petal,[path_res,'Gl569A_prime_param_petal.fits'])
+fitswrite(prime_param_piston,[path_res,'Gl569A_prime_param_piston_iterative.fits'])
+% fitswrite(SEP_BIN,[path_res,'Gl569_separationInMas_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
+% fitswrite(DMAG_BIN,[path_res,'Gl569_differentialFlux_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
+% fitswrite(ANG_BIN,[path_res,'Gl569_angle_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
+% fitswrite(im_fit,[path_res,'Gl569_imfit_',num2str(nRes),'pix_ron_',num2str(ron),'.fits'])
 
 %% RESULTS
 close all;clc;
@@ -320,36 +328,27 @@ pd = fitdist(res_Gl569A','Normal');
 sig_dist(6) = pd.sigma;
 med_dist(6) = pd.median;
 
-%% OLD
-   
-    %8\ Measure photometry/astrometry with PRIME
-%     p.getPrimePSF('objname',objname{kObj},'resolution',nRes,'fov',nRes+20,'ron',300,...
-%         'fitStatModes',1:36,'statModesFunction','piston','fitGains',[true,true,false],'umax',umax);
-%     y                       = p.psfp.catalog_fit.y;
-%     x                       = p.psfp.catalog_fit.x;
-%     flux                    = p.psfp.catalog_fit.flux;
-%     SEP_BIN(5,kObj)         = hypot(diff(x),diff(y));
-%     DMAG_BIN(5,kObj)        = 2.5*log10(max(flux)/min(flux));
-%     ANG_BIN(5,kObj)         = 180 - 180/pi*atan(diff(y)/diff(x));
+%% STATIC ABERRATIONS ANALYSES
+close all;
+path_res = '/home/omartin/Projects/KVS/_results/binaryTests/';
+%Flux - x - y -r0-53 - gAO - gTT - piston modes - bg
+% piston modes
+prime_param_piston = fitsread([path_res,'Gl569A_prime_param_piston_iterative.fits']);
+x_piston           = prime_param_piston(7:end-1,:);
+pist_modes         = fitsread('/home/omartin/Projects/KVS/CODES/PUAKO/_04_PRIME/_imageModel/keckPistonModes_200x200.fits');
+maps_pist          = squeeze(sum(bsxfun(@times,pist_modes,reshape(x_piston,1,1,36,40)),3));
 
-    
-    % prime PSF with anisoplanatism
-%     if includeAniso
-%         p.trs.cam.resolution    = 150;
-%         xdata{1} = 1:p.trs.atm.nLayer;
-%         xdata{2} = 1:p.trs.atm.nLayer;
-%         xdata{3} = p.trs.atm.nLayer+1;
-%         xdata{4} = p.trs.atm.nLayer+2;
-%         xdata{6} = p.trs.atm.nLayer+3:p.trs.atm.nLayer+2+36;
-%         p.trs.ngs.x         = 0;
-%         p.trs.ngs.y         = 0;
-%         p.trs.src           = p.trs.src(1);
-%         p.psfr              = computeAnisoplanatismPhaseStructureFunction(p.psfr);
-%         p.psfp.weightMap    = 1;
-%         p.trs.src(iBin).nObj = 1;
-%         Cn2                 = p.psfp.x_fixed.Cn2;
-%         psf_prime           = imageModel([1,0,0,Cn2*p.psfp.x_final(4)/sum(Cn2),prime_param_piston(5:end-1,kObj)',0],xdata,p.psfp);
-%         psf_prime           = psf_prime/sum(psf_prime(:));
-%         p.trs.cam.resolution    = nRes;
-%     end
-   
+% % petal modes
+% prime_param_petal = fitsread([path_res,'Gl569A_prime_param_petal.fits']);
+% x_petal           = prime_param_petal(7:end-1,:);
+% km                = keckPetalModes();
+% petal_modes       = km.modes;
+% maps_petal        = reshape(petal_modes * x_petal,200,200,[]);
+
+figure;
+imagesc([mean(maps_pist,3),std(maps_pist,[],3)])
+set(gca,'XTick',[],'YTick',[]);
+cb = colorbar();
+cb.TickLabelInterpreter = 'latex';
+cb.FontSize = 20;
+pbaspect([2,1,1])

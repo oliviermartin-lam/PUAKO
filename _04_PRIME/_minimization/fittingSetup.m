@@ -40,17 +40,61 @@ function obj = fittingSetup(obj,varargin)
             end
             
             %2\ Define initial guesses
+            obj.idxCn2  = [];Cn2_init   = []; Cn2_lb    = [];
+            Cn2_ub      = [];obj.idxR0  = [];
+            gain_init   = [];gain_lb    = []; gain_ub   = [];
+            statCoefs_init = [];statCoefs_lb = []; statCoefs_ub = [];
+            nInit       = 1;       
+             
+             
             if (~isempty(aoinit_)) && (~isempty(aobounds_))
+                
+                % --------- user-defined initial guess and bounds ------- %
                 ao_init = aoinit_;
                 ao_lb   = aobounds_(1,:);
                 ao_ub   = aobounds_(2,:);
-            else                                
-                obj.idxCn2  = [];Cn2_init   = []; Cn2_lb    = [];
-                Cn2_ub      = [];obj.idxR0  = [];                
-                gain_init   = [];gain_lb    = []; gain_ub   = [];        
-                statCoefs_init = [];statCoefs_lb = []; statCoefs_ub = [];
-                nInit       = 1;       
+  
+                % atm
+                if fitCn2 == true || fitR0 == true
+                    if fitCn2 == true
+                        nL = obj.psfr.trs.atm.nLayer;
+                        obj.idxCn2= nInit:nInit+nL-1;
+                        obj.idxR0 = obj.idxCn2;
+                        
+                    elseif fitCn2 == false && fitR0 == true
+                        nL = 1;
+                        obj.idxR0 = nInit;
+                    end
+                    Cn2_init  = ao_init(1:nL);
+                    Cn2_lb    = ao_lb(1:nL);
+                    Cn2_ub    = ao_ub(1:nL);
+                end
                 
+                % gains
+                if fitGains(1)
+                    obj.idxDao  = nInit:nInit+numel(obj.jZernGain);
+                    gain_init   = ao_init(obj.idxDao);
+                    gain_lb     = ao_lb(obj.idxDao);
+                    gain_ub     = ao_ub(obj.idxDao);
+                    nInit       = nInit+length(obj.idxDao);
+                end       
+                if fitGains(2)
+                    obj.idxDtt   = nInit;
+                    gain_init    = [gain_init,ao_init(obj.idxDtt)];
+                    gain_lb      = [gain_lb,ao_lb(obj.idxDtt)];
+                    gain_ub      = [gain_ub,ao_ub(obj.idxDtt)];
+                    nInit        = nInit+1;
+                end
+                if fitGains(3)
+                    obj.idxDal = nInit;
+                    gain_init    = [gain_init,ao_init(obj.idxDal)];
+                    gain_lb      = [gain_lb,ao_lb(obj.idxDal)];
+                    gain_ub      = [gain_ub,ao_ub(obj.idxDal)];
+                    nInit        = nInit+1;
+                end
+            else         
+                % --------- automatic initial guess and bounds ------- %
+               
                 %2.1 Cn2 and r0 init           
                 r053 = (obj.psfr.trs.res.seeing.r0*(obj.psfr.trs.cam.wavelength/0.5e-6)^1.2)^(-5/3);
                 if fitCn2
@@ -97,54 +141,64 @@ function obj = fittingSetup(obj,varargin)
                     gain_lb      = [gain_lb,0];
                     gain_ub      = [gain_ub,1e2];                
                 end
+            end
+            
+            
+            %-------------------- 3. Static modes
+            if (~isempty(fitStatModes)   ||  (numel(obj.list_fixed) > 1 && contains(upper(obj.list_fixed{1:2:end}),'AZ'))) && ~isempty(statModesFunction)
+                if isempty(fitStatModes)
+                    errordlg('Please, defined the field fitStatModes as a vector of valid indexes');
+                    obj.flagError = 1;
+                    return;
+                end
+                nModes = numel(fitStatModes);
                 
-                %2.5. Static modes
-                if (~isempty(fitStatModes)   ||  (numel(obj.list_fixed) > 1 && contains(upper(obj.list_fixed{1:2:end}),'AZ'))) && ~isempty(statModesFunction)
-                    if isempty(fitStatModes)
-                        errordlg('Please, defined the field fitStatModes as a vector of valid indexes');                
-                        obj.flagError = 1;
-                        return;
+                if strcmpi(statModesFunction,'ZERNIKE')
+                    obj.statModes  = zernike_puako(fitStatModes,obj.psfr.trs.tel.resolution);
+                    obj.statModes  = obj.statModes.modes;
+                elseif strcmpi(statModesFunction,'PETAL')
+                    tmp = keckPetalModes('resolution',obj.psfr.trs.tel.resolution);
+                    obj.statModes = tmp.modes(:,fitStatModes);
+                elseif strcmpi(statModesFunction,'PISTON')
+                    tmp = fitsread('keckPistonModes_200x200.fits');
+                    tmp = puakoTools.interpolate(tmp,obj.psfr.trs.tel.resolution,'nearest');
+                    tmp = reshape(tmp,obj.psfr.trs.tel.resolution^2,36);
+                    %tmp = keckPetalModes('resolution',obj.psfr.trs.tel.resolution,'petal',false);
+                    obj.statModes = tmp(:,fitStatModes);
+                    % manage rotation
+                    for k=1:numel(fitStatModes)
+                        tmp = puakoTools.rotateIm(reshape(obj.statModes(:,k),obj.psfr.trs.tel.resolution,[]),obj.psfr.trs.wfs.pupilAngle);
+                        obj.statModes(:,k) = tmp(:);
                     end
-                    nModes = numel(fitStatModes);
-                    
-                    if strcmpi(statModesFunction,'ZERNIKE')
-                        obj.statModes  = zernike_puako(fitStatModes,obj.psfr.trs.tel.resolution);
-                        obj.statModes  = obj.statModes.modes;
-                    elseif strcmpi(statModesFunction,'PETAL')
-                        tmp = keckPetalModes('resolution',obj.psfr.trs.tel.resolution);
-                        obj.statModes = tmp.modes(:,fitStatModes);
-                    elseif strcmpi(statModesFunction,'PISTON')
-                        tmp = fitsread('keckPistonModes_200x200.fits');
-                        tmp = puakoTools.interpolate(tmp,obj.psfr.trs.tel.resolution,'nearest');
-                        tmp = reshape(tmp,obj.psfr.trs.tel.resolution^2,36);
-                        %tmp = keckPetalModes('resolution',obj.psfr.trs.tel.resolution,'petal',false);
-                        obj.statModes = tmp(:,fitStatModes);
-                        % manage rotation
-                        for k=1:numel(fitStatModes)
-                            tmp = puakoTools.rotateIm(reshape(obj.statModes(:,k),obj.psfr.trs.tel.resolution,[]),obj.psfr.trs.wfs.pupilAngle);
-                            obj.statModes(:,k) = tmp(:);
-                        end
-                    end
-                    
-                    obj.map_fit.jindex  = fitStatModes;
+                end
+                
+                obj.map_fit.jindex  = fitStatModes;
+                if (~isempty(aoinit_)) && (~isempty(aobounds_))
+                    % static
+                    statCoefs_init = ao_init(nInit:nInit+nModes-1);
+                    statCoefs_lb   = ao_lb(nInit:nInit+nModes-1);
+                    statCoefs_ub   = ao_ub(nInit:nInit+nModes-1);
+                else
                     statCoefs_init      = zeros(1,nModes);
                     sMax                = obj.psfr.trs.cam.wavelength*1e9;
                     statCoefs_lb        =-sMax*ones(1,nModes); %-1micron min
                     statCoefs_ub        = sMax*ones(1,nModes); %1micron max
-                    
-                    if (numel(obj.list_fixed) > 1 && contains(upper(obj.list_fixed{1:2:end}),'AZ'))       
-                        obj.idxStatModes  = [];
-                    else
-                        obj.idxStatModes  = nInit:nInit+nModes-1;                                            
-                    end
                 end
-                %2.6 Concatenating vectors
-                ao_init = [Cn2_init,gain_init,statCoefs_init];
-                ao_lb   = [Cn2_lb,gain_lb,statCoefs_lb];
-                ao_ub   = [Cn2_ub,gain_ub,statCoefs_ub];
+                
+                
+                if (numel(obj.list_fixed) > 1 && contains(upper(obj.list_fixed{1:2:end}),'AZ'))
+                    obj.idxStatModes  = [];
+                else
+                    obj.idxStatModes  = nInit:nInit+nModes-1;
+                end
             end
             
-            %3\  Define initial guess on stellar parameters
+            %4 Concatenating vectors
+            ao_init = [Cn2_init,gain_init,statCoefs_init];
+            ao_lb   = [Cn2_lb,gain_lb,statCoefs_lb];
+            ao_ub   = [Cn2_ub,gain_ub,statCoefs_ub];
+                
+            %4\  Define initial guess on stellar parameters
             nStars      = obj.psfr.trs.src.nObj;
             % flux
             photo_init  = [obj.psfr.trs.src(obj.idSrc).F]/sum(obj.psfr.trs.src(obj.idSrc).F);           

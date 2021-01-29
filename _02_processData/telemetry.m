@@ -59,6 +59,8 @@ classdef telemetry < handle
             inputs.addParameter('flagGaussian',false,@islogical);            
             inputs.addParameter('flagMoffat',false,@islogical);      
             inputs.addParameter('flagBrightestStar',false,@islogical);
+            inputs.addParameter('umax',10,@isnumeric);
+            
             inputs.parse(obj_name,path_trs,path_imag,folder_paths,fitsHdr,varargin{:});
                                 
             %1\ Initialization
@@ -79,6 +81,7 @@ classdef telemetry < handle
             flagMoffat      = inputs.Results.flagMoffat;
             flagGaussian    = inputs.Results.flagGaussian;
             flagBrightestStar = inputs.Results.flagBrightestStar;
+            umax            = inputs.Results.umax;
             
             if isa(obj_name,'aoSystem')                
                 obj     = fromAoSystemClassToTelemetry(obj,obj_name);      
@@ -108,7 +111,7 @@ classdef telemetry < handle
                 obj = restoreCalibratedData(obj,getImageOnly);
                 
                 %4\ Restoring and processing NIRC2 images
-                obj = processDetectorImage(obj,'flagMoffat',flagMoffat,'flagGaussian',flagGaussian,'flagBrightestStar',flagBrightestStar);
+                obj = processDetectorImage(obj,'flagMoffat',flagMoffat,'flagGaussian',flagGaussian,'flagBrightestStar',flagBrightestStar,'umax',umax);
                 
                 if ~getImageOnly
                     %5\ Restoring AO telemetry

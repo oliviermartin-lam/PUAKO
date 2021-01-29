@@ -400,6 +400,7 @@ classdef puako < handle
             inputs.addParameter('yesToAll', false, @islogical);
             inputs.addParameter('keepInMemory', false, @islogical);
             inputs.addParameter('threshSteeringMirror', 20, @isnumeric);
+            inputs.addParameter('flagBrightestStar', false, @islogical);
             inputs.addParameter('resolution', 150, @isnumeric);
             inputs.addParameter('fitR0',true,@islogical);
             inputs.addParameter('fitCn2',false,@islogical);
@@ -424,6 +425,9 @@ classdef puako < handle
             inputs.addParameter('D1',9,@isnumeric);
             inputs.addParameter('D2',2.65,@isnumeric);
             inputs.addParameter('fov',[],@isnumeric);
+            inputs.addParameter('umax',10,@isnumeric);
+            inputs.addParameter('aoinit',10,@isnumeric);
+            inputs.addParameter('aobounds',10,@isnumeric);
             inputs.parse(obj,varargin{:});
             
            %1\ Checking if the user wants to save results or not
@@ -448,6 +452,7 @@ classdef puako < handle
             obj.keepInMemory= inputs.Results.keepInMemory;
             threshSteer     = inputs.Results.threshSteeringMirror;         
             % Fitting options
+            flagBrightestStar= inputs.Results.flagBrightestStar;
             flagJacobian    = inputs.Results.flagJacobian;
             jZernGain       = inputs.Results.jZernGain;
             fitR0           = inputs.Results.fitR0;
@@ -474,6 +479,9 @@ classdef puako < handle
             jMax            = inputs.Results.jMax;
             resolution      = inputs.Results.resolution;
             fov_fit         = inputs.Results.fov;
+            umax            = inputs.Results.umax;
+            aoinit          = inputs.Results.aoinit;
+            aobounds        = inputs.Results.aobounds;
             if isempty(fov_fit)
                 fov_fit     = 4/3*inputs.Results.resolution;
             end
@@ -501,7 +509,7 @@ classdef puako < handle
                 
                 %4.2 Get the telemetry
                 obj.trs = telemetry(objname,pathTRS,pathIMAG,obj.data_folder_path,hdr_k,'path_ncpa',path_ncpa,'resolution',resolution,'flagNoisemethod',noisemethod,'fitL0',fitL0,'flagBest',flagBest,'flagMedian',...
-                flagMedian,'D1',D1,'D2',D2,'badModesList',badModesList,'jMin',jMin,'jMax',jMax);
+                flagMedian,'D1',D1,'D2',D2,'badModesList',badModesList,'jMin',jMin,'jMax',jMax,'flagBrightestStar',flagBrightestStar,'umax',umax);
 
                 %4.3 PSF reconstruction
                 obj.psfr = psfReconstruction(obj.trs,'flagAoPattern',flagAoPattern,'fitBg',fitBg,'fov',fov_fit,'flagDphimethod',flagDphimethod);
@@ -514,7 +522,7 @@ classdef puako < handle
                 else % we don't increment obj.psfp so we save memory
                     obj.psfp = prime(obj.psfr,'algorithm',algo,'x_fixed',x_fixed,'ron',ron,'flagJacobian',flagJacobian,...
                         'fitR0',fitR0,'fitCn2',fitCn2,'fitGains',fitGains,'jZernGain',jZernGain,'fitBg',fitBg,...
-                        'fitStatModes',fitStatModes,'statModesFunction',statModesFunction);
+                        'fitStatModes',fitStatModes,'statModesFunction',statModesFunction,'aoinit',aoinit,'aobounds',aobounds);
                     im  = obj.psfp.psf.image;                   
                 end
 

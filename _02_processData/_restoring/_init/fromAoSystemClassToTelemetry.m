@@ -21,14 +21,14 @@ trs.atm.Cn2 = trs.atm.r0 ^(-5/3)*trs.atm.weights;
 trs.atm.windSpeed =  [aoSys.atm.layer.windSpeed];
 trs.atm.windDirection = [aoSys.atm.layer.windDirection];
 trs.atm.nLayer = length(trs.atm.weights);
+trs.atm.zenith_angle = aoSys.parms.atm.zenithAngle;
 
 %1.3. Pupil
 trs.tel.Ddm = aoSys.tel.D;
 trs.tel.pupil = aoSys.tel.pupil;
 trs.tel.resolution = aoSys.tel.resolution;
 trs.tel.pixelscale = aoSys.tel.D/trs.tel.resolution;
-trs.tel.zenith_angle = aoSys.parm.atm.zenithAngle;
-trs.tel.airmass = 1/cos(trs.tel.zenith_angle*pi/180);
+trs.tel.airmass = 1/cos(trs.atm.zenith_angle*pi/180);
 trs.tel.pupilAngle  = 0;
 
 %1.4. Static aberrations
@@ -49,7 +49,9 @@ trs.wfs.theta = 0;
 %2.2 WFS pixels intensity
 nPix = aoSys.wfs.camera.resolution(1);
 trs.wfs.intensity = zeros(nPix,nPix);
-trs.wfs.intensity = median(aoSys.loopData.intensity,3);
+if isfield('intensity','aoSys.loopData')
+    trs.wfs.intensity = median(aoSys.loopData.intensity,3);
+end
 
 %2.3. DM commands
 trs.dm.volt2meter = 2;
@@ -58,7 +60,7 @@ trs.dm.com= bsxfun(@minus,trs.dm.com,mean(trs.dm.com,2));
 trs.dm.nCom = size(trs.dm.com,1);
 trs.dm.validActuators = aoSys.dm.validActuator;
 trs.dm.nActuators = size(trs.dm.validActuators,1);
-trs.dm.pitch = aoSys.parm.dm.pitch;
+trs.dm.pitch = aoSys.parms.dm.pitch;
 
 %2.4 Influence DM functions
 trs.dm.pupilMask = logical(puakoTools.interpolate(trs.tel.pupil,trs.dm.nActuators));
@@ -97,7 +99,7 @@ trs.dm.com = u;
 
 %% 4\ Get the loop status and model transfer function
 %4.1. Latency
-if ~isfield(aoSys.parm.loopStatus,'tt')
+if ~isfield(aoSys.parms.loopStatus,'tt')
     aoSys.loopStatus.tt = aoSys.loopStatus.ho;
 end
 trs.holoop.lat = aoSys.loopStatus.ho.latency;
@@ -117,7 +119,7 @@ trs.ttloop.tf.num=  [trs.ttloop.gain 0 0 0];
 trs.ttloop.tf.den= [-1 0 0];
 
 %% 5\ Restore the PSF
-trs.cam.pixelScale = aoSys.parm.cam.pixelScale;
+trs.cam.pixelScale = aoSys.parms.cam.pixelScale;
 trs.cam.resolution = size(aoSys.psf,1);
 trs.cam.fov = trs.cam.resolution*trs.cam.pixelScale/1e3;
 
