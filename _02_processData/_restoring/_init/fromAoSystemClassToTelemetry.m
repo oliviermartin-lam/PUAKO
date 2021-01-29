@@ -123,7 +123,7 @@ trs.cam.pixelScale = aoSys.parms.cam.pixelScale;
 trs.cam.resolution = size(aoSys.psf,1);
 trs.cam.fov = trs.cam.resolution*trs.cam.pixelScale/1e3;
 
-trs.cam.image    =  aoSys.psf ;
+trs.cam.image    =  aoSys.psf.image ;
 trs.cam.wavelength = aoSys.sci.wavelength;
 trs.cam.samp          = constants.radian2mas*trs.cam.wavelength/trs.tel.Ddm/2/trs.cam.pixelScale;
 trs.src.x                  = 0;
