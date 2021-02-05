@@ -264,7 +264,7 @@ classdef psfTools < handle
         end
         
         function ee = getEncircledEnergy(psf)                                  
-            [~,~,pr] = radial(psf);
+            pr = radial(psf);
             ee  =cumsum(pr)/sum(psf(:));                                        
         end
         
