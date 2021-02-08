@@ -23,7 +23,7 @@ if (isprop(psfr.trs,'res') || isfield(psfr.trs,'res')) && isfield(psfr.trs.res,'
     fprintf('The noise covariance matrix has been already successfully estimated.\n');
 else
     fprintf('Estimating the noise covariance matrix\n');
-    psfr.trs.res.noise = estimateNoiseCovarianceFromTelemetry(psfr.trs,'method',psfr.flags.noiseMethod);
+    psfr.trs.res.noise = estimateNoiseCovarianceFromTelemetry(psfr.trs,'flagNoisemethod',psfr.flags.noiseMethod);
 end
 
 %\2 Seeing estimation

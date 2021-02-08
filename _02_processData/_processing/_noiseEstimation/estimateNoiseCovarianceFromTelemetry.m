@@ -31,10 +31,9 @@ if strcmp(method,'theoretical')
     % !!!! to be review !!!1
     %Number of photons
     
-    d = trs.dm.pitch;
-    ron = trs.wfs.ron;
-    wvl = trs.wfs.wavelength;
-    trs.wfs.pixelScale = 800; %??? how can we get this value from the fits header ?
+    d       = trs.dm.pitch;
+    ron     = trs.wfs.ron;
+    wvl     = trs.wfs.wavelength;
     psInRad = constants.arcsec2radian*trs.wfs.pixelScale/1e3;
     
     % Estimation of the number of photon
@@ -55,13 +54,17 @@ if strcmp(method,'theoretical')
     
     varPix_tt = (4*pi^2*(ron_tt/nph_tt)^2 + pi^2*1./nph_tt )*(wvl_tt/(2*pi*d_tt*psInRad_tt))^2;
     res.Cn_tt = varPix_tt*trs.mat.Rtt*trs.mat.Rtt';
-else
+elseif strcmp(method,'autocorrelation')
     %1\ HO WFS noise covariance matrix
     res.Cn_ho = getNoiseCovariance(trs.dm.com,'flagNoisemethod',method,'rtf',trs.holoop.tf.ctf./trs.holoop.tf.wfs,'FSAMP',trs.holoop.freq);
     validInput = std(trs.dm.com,[],2)~=0;
 
     %2\ TT WFS noise covariance matrix
     res.Cn_tt = getNoiseCovariance(trs.tipTilt.com,'flagNoisemethod',method,'rtf',trs.ttloop.tf.ctf./trs.ttloop.tf.wfs,'FSAMP',trs.ttloop.freq);
+elseif strcmp(method,'nonoise')
+    res.Cn_ho = zeros(size(trs.dm.com,1));
+    res.Cn_tt = zeros(size(trs.tipTilt.com,1));
+    validInput = std(trs.dm.com,[],2)~=0;
 end
 
 res.std_ho = sqrt(trace(res.Cn_ho(validInput,validInput))/nnz(validInput))*1e9;

@@ -35,7 +35,11 @@ if fov~=size(obj.psf.image,1)
     im_sky = puakoTools.crop(im_sky,fov);
     im_rec = puakoTools.crop(im_rec,fov);
 end
-im_res = im_rec - im_sky;
+
+F = max(im_sky(:));
+im_sky = im_sky/F;
+im_rec = im_rec/F;
+im_res = abs(im_rec - im_sky);
 
 fov  =size(im_sky,1);
 rov  = floor(fov/2);
@@ -49,10 +53,10 @@ x_f = ps*rov*linspace(-1,1,fov);
 
 h = figure;
 subplot(2,2,1)
-plot(x_r,asinh(radial(im_sky,x0,y0)),'b-','linewidth',linewidth);hold on;
-plot(x_r,asinh(radial(im_rec,x0,y0)),'r','linewidth',linewidth);
-plot(x_r,asinh(radial(im_res,x0,y0)),'k:','linewidth',linewidth);
-ylim(asinh([mn,mx]));
+plot(x_r,log10(radial(im_sky,x0,y0)),'b-','linewidth',linewidth);hold on;
+plot(x_r,log10(radial(im_rec,x0,y0)),'r','linewidth',linewidth);
+plot(x_r,log10(radial(im_res,x0,y0)),'k:','linewidth',linewidth);
+ylim([-5,0.5]);
 xlim([min(x_r)-10,max(x_r(:))])
 xlabel('Angular distance (mas)','interpreter','latex','FontSize',fontsize);
 ylabel('Azimuthal profile (ADU)','interpreter','latex','FontSize',fontsize);
@@ -61,11 +65,11 @@ set(gca,'FontSize',fontsize,'FontName','cmr12','TickLabelInterpreter','latex' );
 pbaspect([1.6,1,1]);
 
 subplot(2,2,3)
-plot(x_f,asinh(im_sky(:,round(y0))),'b-','linewidth',linewidth);hold on;
-plot(x_f,asinh(im_rec(:,round(y0))),'r','linewidth',linewidth);
-plot(x_f,asinh(abs(im_res(:,round(y0)))),'k:','linewidth',linewidth);
-ylim(asinh([mn,mx]));
-xlim([min(x_f)-10,max(x_f(:))])
+plot(x_f,log10(im_sky(:,round(y0))),'b-','linewidth',linewidth);hold on;
+plot(x_f,log10(im_rec(:,round(y0))),'r','linewidth',linewidth);
+plot(x_f,log10(abs(im_res(:,round(y0)))),'k:','linewidth',linewidth);
+ylim([-5,0.5]);
+xlim([min(x_f),max(x_f(:))])
 xlabel('Angular distance (mas)','interpreter','latex','FontSize',fontsize);
 ylabel('x-axis profile (ADU)','interpreter','latex','FontSize',fontsize);
 legend({'Sky image',resultsof,'Residual'},'interpreter','latex','FontSize',fontsize,'Location','northeast');
@@ -73,11 +77,11 @@ set(gca,'FontSize',fontsize,'FontName','cmr12','TickLabelInterpreter','latex' );
 pbaspect([1.6,1,1]);
 
 subplot(2,2,4)
-plot(x_f,asinh(im_sky(round(x0),:)),'b-','linewidth',linewidth);hold on;
-plot(x_f,asinh(im_rec(round(x0),:)),'r','linewidth',linewidth);
-plot(x_f,asinh(im_res(round(x0),:)),'k:','linewidth',linewidth);
-ylim(asinh([mn,mx]));
-xlim(([min(x_f)-10,max(x_f(:))]))
+plot(x_f,log10(im_sky(round(x0),:)),'b-','linewidth',linewidth);hold on;
+plot(x_f,log10(im_rec(round(x0),:)),'r','linewidth',linewidth);
+plot(x_f,log10(im_res(round(x0),:)),'k:','linewidth',linewidth);
+ylim([-5,0.5]);
+xlim(([min(x_f),max(x_f(:))]))
 legend({'Sky image',resultsof,'Residual'},'interpreter','latex','FontSize',fontsize,'Location','northeast');
 xlabel('Angular distance (mas)','interpreter','latex','FontSize',fontsize);
 ylabel('y-axis profile (ADU)','interpreter','latex','FontSize',fontsize);
@@ -99,35 +103,27 @@ mtf_tel = puakoTools.interpolateOtf(mtf_tel,(fov));
 u       = linspace(0,max(samp,1),(fov/2));
 [ym,xm] = find(mtf_tel == max(mtf_tel(:)));
 mtel    = (radial(mtf_tel,ym,xm));
-plot(u,mtel,'k--','linewidth',linewidth);hold on;
+semilogy(u,mtel,'k--','linewidth',linewidth);hold on;
 ms      = (radial(mtf_sky,fov/2+1,fov/2+1));
-plot(u,ms,'b-','linewidth',linewidth);
+semilogy(u,ms,'b-','linewidth',linewidth);
 mr      = (radial(mtf_rec,fov/2+1,fov/2+1));
-plot(u,mr,'r-','linewidth',linewidth);
+semilogy(u,mr,'r-','linewidth',linewidth);
 dr      = radial(mtf_res,fov/2+1,fov/2+1);
-plot(u,dr,'k:','linewidth',linewidth);
+semilogy(u,dr,'k:','linewidth',linewidth);
 xlabel('Angular frequency (D/$\lambda$)','interpreter','latex','FontSize',fontsize);
 ylabel('MTF profile','interpreter','latex','FontSize',fontsize);
 xlim([0,1]);
 id = find(u>1);
 ylim([mtel(id(1)),1.05])
-legend({'Telescope MTF','Sky MTF',resultsof,'Residual'},'interpreter','latex','FontSize',fontsize,'Location','northeast');
+legend({'Telescope MTF','Sky MTF',resultsof,'Residual'},'interpreter','latex','FontSize',fontsize,'Location','southwest');
 set(gca,'FontSize',fontsize,'FontName','cmr12','TickLabelInterpreter','latex' );
 pbaspect([1.6,1,1]);
 
 %3\ 2D PSF;
 P = [im_sky,im_rec,im_res];
-Plog = asinh((P));
-if sign(max(Plog(:))) ==1
-    mn = 0.35*max(Plog(:));
-    mx = 1.05*max(Plog(:));
-else
-    mn = 5*max(Plog(:));
-    mx = 1.1*min(Plog(:));
-end
-
+Plog = log10(P);
 h = figure;
-imagesc(Plog,[mn,mx]);
+imagesc(Plog,[-5,0.5]);
 set(gca,'XTick',[],'YTick',[]);
 pbaspect([3,1,1])
 cb = colorbar();

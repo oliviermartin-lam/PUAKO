@@ -83,7 +83,8 @@ classdef telemetry < handle
             flagBrightestStar = inputs.Results.flagBrightestStar;
             umax            = inputs.Results.umax;
             
-            if isa(obj_name,'aoSystem')                
+            if isa(obj_name,'aoSystem')    
+                % Interface with KASP
                 obj     = fromAoSystemClassToTelemetry(obj,obj_name);      
                 aoMode  = obj.aoMode;
             else

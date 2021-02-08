@@ -75,10 +75,10 @@ if ~isfield(trs.res,'noise') || (isfield(trs.res,'noise')  && isempty(trs.res.no
     fprintf('Estimate the noise covariance matrix\n')
     getNoiseSTD(trs);
 end
-Cn   = 0*trs.res.noise(1).Cn_ho;
-Cn2 = trs.res.noise(1).Cn_ho;
+Cn                      = 0*trs.res.noise(1).Cn_ho;
+Cn2                     = trs.res.noise(1).Cn_ho;
 Cn(validActu,validActu) = Cn2(validActu,validActu)*(2*pi/wvl)^2;
-varN = trace(Cn(validActu,validActu))/nValid;
+varN                    = trace(Cn(validActu,validActu))/nValid;
 
 %4\ Preliminary r0 estimation sig^2 = 0.111*(D(1-o)/r0)^5/3
 varPh = sum(std(uout(validActu,:),[],2).^2)/nValid - varN;

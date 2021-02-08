@@ -203,15 +203,7 @@ function obj = fittingSetup(obj,varargin)
             % flux
             photo_init  = [obj.psfr.trs.src(obj.idSrc).F]/sum(obj.psfr.trs.src(obj.idSrc).F);           
             photo_b     = [zeros(1,nStars);1e2*ones(1,nStars)];
-            % positions
-
-            %             idM         = find(obj.psfr.trs.src(obj.idSrc).F == max(obj.psfr.trs.src(obj.idSrc).F));
-%             pos_init    = 1e3*[obj.psfr.trs.src(obj.idSrc).y - obj.psfr.trs.src(obj.idSrc).y(idM)...
-%                                 ,obj.psfr.trs.src(obj.idSrc).x - obj.psfr.trs.src(obj.idSrc).x(idM)]...
-%                                 /obj.psfr.trs.cam.pixelScale;           %in pixel            
-%             [yref,xref] = find(obj.ydata == max(obj.ydata(:)));
-%             pos_init    = pos_init - (obj.psfr.trs.cam.resolution/2+1 - [xref*ones(1,nStars),yref*ones(1,nStars)]);   
-%             
+            % positions             
             idMax                   = find(obj.psfr.trs.src(obj.idSrc).F == max(obj.psfr.trs.src(obj.idSrc).F));
             idMin                   = find(obj.psfr.trs.src(obj.idSrc).F ~= max(obj.psfr.trs.src(obj.idSrc).F));
             pos_init                = -[abs(obj.psfr.trs.src(obj.idSrc).y(idMin) - obj.psfr.trs.src(obj.idSrc).y(idMax)),0,...

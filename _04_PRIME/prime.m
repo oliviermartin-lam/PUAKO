@@ -67,7 +67,7 @@ classdef prime < handle
             inputs.addParameter('x_fixed',{[]},@iscell);
             inputs.addParameter('fitR0',true,@islogical);
             inputs.addParameter('fitCn2',false,@islogical);
-            inputs.addParameter('fitGains',[true,true,true],@islogical);
+            inputs.addParameter('fitGains',[true,true,false],@islogical);
             inputs.addParameter('fitBg',true,@islogical);
             inputs.addParameter('statModesFunction','',@ischar);
             inputs.addParameter('fitStatModes',[],@isnumeric);
