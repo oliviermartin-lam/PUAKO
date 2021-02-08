@@ -148,7 +148,10 @@ classdef psfStats < handle
                     obj.catalogs.ref.dx = tmp(4,:)*obj.pixelScale;
                     obj.catalogs.ref.dy = tmp(5,:)*obj.pixelScale;
                     obj.catalogs.ref.dflux = tmp(6,:);
-                    obj.catalogs.ref.fvu = puakoTools.getFVU(obj.im_ref,obj.im_fit);
+                    obj.catalogs.ref.fvu = 1e2*puakoTools.getFVU(obj.im_ref,obj.im_fit);
+                    obj.catalogs.ref.mse = 1e2*sqrt(sum( (obj.im_ref(:)-obj.im_fit(:)).^2 ))/sum(obj.im_ref(:));
+                    obj.catalogs.ref.mae = 1e2*sum(abs(obj.im_ref(:)-obj.im_fit(:)))/sum(obj.im_ref(:));
+                    
                     if obj.fitbg
                         obj.catalogs.ref.bg = tmp(7,:);
                     end
