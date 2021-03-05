@@ -13,6 +13,7 @@ path_calib_tel = [path_calib,'TELESCOPE/'];
 
 %% 1\ Get static aberrations calibration
 %1.1 NCPA
+WFSTHETA = 0;
 if isempty(trs.path_ncpa)
     if strcmp(date(1:4),'2013')
         trs.path_ncpa = [path_calib_ao,'STATIC/phasemaps_2013.fits'];
