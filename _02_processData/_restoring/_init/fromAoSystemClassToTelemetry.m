@@ -105,7 +105,7 @@ trs.tipTilt.slopes      = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slop
 
 trs.tipTilt.com     = trs.tipTilt.tilt2meter*aoSys.loopData.tiltCom;
 trs.tipTilt.com     = bsxfun(@minus,trs.tipTilt.com,mean(trs.tipTilt.com,2));
-trs.tipTilt.nExp    = size(trs.tipTilt.slopes,2);    
+trs.tipTilt.nExp    = size(trs.tipTilt.slopes,3);    
 
 %% 3\ Get system matrices
 %3.1\ Get DM commands reconstructors from slopes
@@ -114,16 +114,16 @@ trs.mat.R   = trs.dm.volt2meter*MC;
 trs.mat.Rtt = trs.tipTilt.tilt2meter;
 
 %3.2\ Get the reconstructed wavefront in OPD and in the actuators space
-trs.rec.res    = trs.dm.volt2meter*trs.mat.R*trs.wfs.slopes;
-trs.rec.res    = bsxfun(@minus,trs.rec.res,mean(trs.rec.res,2));
+trs.rec.res = trs.dm.volt2meter*trs.mat.R*trs.wfs.slopes;
+trs.rec.res = bsxfun(@minus,trs.rec.res,mean(trs.rec.res,2));
 
 %3.3 fill vector to get 21x21 actuators
-u = zeros(trs.dm.nActuators^2,trs.wfs.nExp);
-u(trs.dm.validActuators,:) = trs.rec.res;
-trs.rec.res = u;
-u = zeros(trs.dm.nActuators^2,trs.wfs.nExp);
-u(trs.dm.validActuators,:) = aoSys.matrices.DMTTRem*trs.dm.com;
-trs.dm.com = u;
+u                           = zeros(trs.dm.nActuators^2,trs.wfs.nExp);
+u(trs.dm.validActuators,:)  = trs.rec.res;
+trs.rec.res                 = u;
+u                           = zeros(trs.dm.nActuators^2,trs.wfs.nExp);
+u(trs.dm.validActuators,:)  = aoSys.matrices.DMTTRem*trs.dm.com;
+trs.dm.com                  = u;
 
 %% 4\ Get the loop status and model transfer function
 %4.1. Latency

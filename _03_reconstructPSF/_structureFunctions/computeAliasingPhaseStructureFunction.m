@@ -71,15 +71,15 @@ Ry(ceil((nK+1)/2),ceil((nK+1)/2)) = 0;
 h1          = zeros(nK);
 for kLayer = 1:atm.nLayer
     % Define the temporal frequency
-    fi = -vlx(kLayer)*kx + -vly(kLayer)*ky;
-    idx = abs(fi) <1e-7;
+    fi      = -vlx(kLayer)*kx + -vly(kLayer)*ky;
+    idx     = abs(fi) <1e-7;
     fi(idx) = 1e-8.*sign(fi(idx));
     % Get the AO closed-loop transfer function
-    tfwfs    = wfsTransferFunction(fi,obj.trs.holoop.freq);
-    tflag = delayTransferFunction(fi,obj.trs.holoop.freq,obj.trs.holoop.lat*obj.trs.holoop.freq);
+    tfwfs   = wfsTransferFunction(fi,obj.trs.holoop.freq);
+    tflag   = delayTransferFunction(fi,obj.trs.holoop.freq,obj.trs.holoop.lat*obj.trs.holoop.freq);
     tfservo = servoTransferFunction(fi,obj.trs.holoop.freq,obj.trs.holoop.tf.num,obj.trs.holoop.tf.den);
-    tfol = tfwfs.*tfservo.*tflag;
-    h1 = h1 + fr0(kLayer)*tfol./(1+tfol);
+    tfol    = tfwfs.*tfservo.*tflag;
+    h1      = h1 + fr0(kLayer)*tfol./(1+tfol);
 end
 
 %5.2 Get the PSD
@@ -118,9 +118,9 @@ else
     msk = 1-msk;
 end
 
-psd = real(cst*psd.*pistonRemoval(D,d,kx,0,0)).*msk;
+psd     = real(r0^(-5./3)*cst*psd.*pistonRemoval(D,d,kx,0,0)).*msk;
 psd_pad = puakoTools.enlargePupil(psd,nT);
-covMap = real(puakoTools.psd2cov(psd_pad,dk));
+covMap  = real(puakoTools.psd2cov(psd_pad,dk));
 
 
 % Update the PSFR class structure

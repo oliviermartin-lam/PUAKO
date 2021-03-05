@@ -20,13 +20,17 @@ if gs.height ~= Inf
     TT     = zern.modes;
     Hfilter= eye(npt^2) - TT*pinv(TT);
     Hfilter= Hfilter*psfr.trs.mat.Hdm;
+    
 elseif gs.height == Inf && isTT
-    x      = (-1+1/npt:2/npt:1-1/npt);
-    [X,Y]  = meshgrid(x,x);
-    TT     = [X(:),Y(:)];
+    %x      = (-1+1/npt:2/npt:1-1/npt);
+    %[X,Y]  = meshgrid(x,x);
+    %TT     = [X(:),Y(:)];
+    zern   = zernike_puako(2:3,npt);
+    TT     = zern.modes;
     Hfilter= TT*pinv(TT);
+    
 else
-    Hfilter= 1;%psfr.trs.mat.Hdm;
+    Hfilter= psfr.trs.mat.Hdm;
 end
 
 %2\ SF Calculation
@@ -55,9 +59,10 @@ if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to 
     cte     = 0.12184*0.06*(2*pi)^2;
     
     % Anisoplanatism Structure Function
+    rad2arcsec = 3600 * 180/pi;
     for iSrc = 1:nSrc
-        thx = (psfr.trs.src(iSrc).x(1) - gs.x)/206264.8;
-        thy = (psfr.trs.src(iSrc).y(1) - gs.y)/206264.8;
+        thx = (psfr.trs.src(iSrc).x(1) - gs.x)/rad2arcsec;
+        thy = (psfr.trs.src(iSrc).y(1) - gs.y)/rad2arcsec;
         
         for l = 1:atm.nLayer
             zl   = atm.heights(l);
@@ -69,15 +74,14 @@ if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to 
                     tmp   = Hfilter*(2*I0 - 2*I1 + I2 - 2*I3  + I4)*Hfilter';
                 else
                     g     = zl/gs.height;
-                    I2    = Ialpha(rhoX*(1-g),rhoY*(1-g));
-                    I3    = Ialpha(rhoX-g*X1+zl*thx,rhoY-g*Y1+zl*thy);
-                    I4    = Ialpha(g*X1-zl*thx,g*Y1-zl*thy);
-                    I5    = Ialpha(g*(rhoX-X1)-zl*thx,g*(rhoY-Y1)-zl*thy);
-                    I6    = Ialpha((1-g)*rhoX+g*X1-zl*thx,(1-g)*rhoY+g*Y1-zl*thy);
-                    tmp   = Hfilter*(2.*I0 - I1 - I2 + I3 - I4 - I5 + I6)*Hfilter';
+                    I2    = Ialpha(rhoX*(1-g) , rhoY*(1-g));
+                    I3    = Ialpha(rhoX -g*X1 + zl*thx , rhoY - g*Y1 + zl*thy);
+                    I4    = Ialpha(g*X1 - zl*thx , g*Y1 - zl*thy);
+                    I5    = Ialpha(g*(rhoX-X1) -zl*thx , g*(rhoY-Y1) - zl*thy);
+                    I6    = Ialpha((1-g)*rhoX + g*X1 - zl*thx , (1-g)*rhoY + g*Y1 - zl*thy);
+                    tmp   = Hfilter*(2*I0 - I1 - I2 + I3 - I4 - I5 + I6)*Hfilter';
                 end
-                
-                
+                              
                 if psfr.flags.toeplitz
                     tmp = puakoTools.covMatrix2Map(tmp,psfr.otf.dk,psfr.otf.dk);
                     tmp = puakoTools.interpolateOtf(tmp,psfr.otf.nOtf);
@@ -138,11 +142,11 @@ else % Use the native OOMAO routines in phaseStats to calculate the anisoplanati
     end
 end
 
-    function out = mcDonald(x)
+function out = mcDonald(x)
         out = x.^(5/6.).*besselk(5./6,x)./(2^(5/6.)*gamma(11/6.)) ;
         out(find(x == 0)) = 3/5.;
         
-        function out = interpolateOtf(otf,nRes,method)
+function out = interpolateOtf(otf,nRes,method)
             if nargin < 3
                 method = 'spline';
             end

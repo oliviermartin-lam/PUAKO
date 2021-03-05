@@ -22,10 +22,10 @@ inputs.addRequired('obj',@(x) isa(x,'psfReconstruction'));
 inputs.parse(obj);
 
 
-obj.sf.Dani_l = 0;
+obj.sf.Dani_l   = 0;
 obj.sf.DaniTT_l = 0;
-obj.sf.Dani = 0;
-obj.otf.Kani = 1;
+obj.sf.Dani     = 0;
+obj.otf.Kani    = 1;
 
 %1\ Verify if there is anisoplanatism
 xSrc                        = cell2mat({obj.trs.src.x});
@@ -36,37 +36,42 @@ obj.flags.isTiltAniso       = strcmp(obj.trs.aoMode,'LGS') && (obj.trs.ngs.x~=0 
 obj.flags.isAniso           = obj.flags.isFocalAniso + obj.flags.isAngularAniso + obj.flags.isTiltAniso;
 
 if obj.flags.isAniso    
-    r053 =  (obj.trs.atm.r0*(obj.trs.cam.wavelength/0.5e-6)^1.2)^(-5/3);
+    r053 =  (obj.trs.atm.r0*(obj.trs.cam.wavelength/obj.trs.atm.wavelength)^1.2)^(-5/3);
     %Note: I consider that the seeing estimated from the telemetry is the
     %DIMM seeing plus dome seeing, i.e. I trust the absolute value of Cn2
     %coming from the MASS. SO I do not rescale the profile regarding the
     %telemetry seeing.
     Cn2 = obj.trs.atm.weights*r053;
-    %2\ Get the anisoplanatism phase structure function due to angular and focal anisoplanatism
+    
     if obj.flags.isAngularAniso
-    obj.sf.Dani_l       = instantiateAnisoplanatism(obj,obj.trs.ngs);   
+        %1\ Get the angular-anisoplanatism phase structure function
+        obj.sf.Dani_l = instantiateAnisoplanatism(obj,obj.trs.ngs);   
+    
     elseif obj.flags.isFocalAniso
-        obj.sf.Dani_l   = instantiateAnisoplanatism(obj,obj.trs.lgs);
+        %2\ Get the focal-angular-anisoplanatism phase structure function
+        obj.sf.Dani_l = instantiateAnisoplanatism(obj,obj.trs.lgs);
+    
     end
     
     obj.sf.Dani = squeeze(sum(bsxfun(@times, obj.sf.Dani_l , reshape(Cn2,1,1,[])), 3));
     
     if obj.flags.isTiltAniso
-    %3\ Get the tip-tilt anisoplanatism phase structure function
+        %3\ Get the tip-tilt anisoplanatism phase structure function
         obj.sf.DaniTT_l     = instantiateAnisoplanatism(obj,obj.trs.ngs,'isTT',true);
         obj.sf.Dani         = squeeze(obj.sf.Dani+ sum(bsxfun(@times, obj.sf.DaniTT_l, reshape(Cn2,1,1,[])), 3));
-        obj.sf.Dani_l       = obj.sf.Dani_l   + obj.sf.DaniTT_l;
+        obj.sf.Dani_l       = obj.sf.Dani_l  + obj.sf.DaniTT_l;
     end
     
     %4\ Get the anisoplanatism spatial filter
     if obj.flags.toeplitz
         obj.otf.Kani                = exp(-0.5*obj.sf.Dani);
     else
-        idx                         = true(obj.otf.dk);
-        dp                          = obj.tel.Ddm/(obj.otf.dk-1);
-        obj.otf.otfDen              = puakoTools.zonalCovarianceToOtf(obj.sf.Dani*0,obj.otf.nOtf,obj.trs.tel.Ddm,dp,idx);
+        idx                         = ones(obj.otf.dk);
+        dp                          = obj.trs.tel.Ddm/(obj.otf.dk-1);
+        obj.otf.otfDen              = modes2Otf(obj.sf.Dani*0,obj.trs.mat.dmIF',idx,obj.otf.nOtf,'D',obj.trs.tel.Ddm,'dk',dp,'method','zonal');
         obj.otf.mskOtf              = obj.otf.otfDen > 1e-6;
-        Kani                        = puakoTools.zonalCovarianceToOtf(obj.sf.Dani,obj.otf.nOtf,obj.trs.tel.Ddm,dp,idx);
-        obj.otf.Kani (obj.mskOtf)   = Kani(obj.otf.mskOtf)./obj.otf.otfDen(obj.otf.mskOtf);
+        Kani                        = modes2Otf(obj.sf.Dani,obj.trs.mat.dmIF',idx,obj.otf.nOtf,'D',obj.trs.tel.Ddm,'dk',dp,'method','zonal');
+        obj.otf.Kani                = 0*Kani;
+        obj.otf.Kani(obj.otf.mskOtf)   = Kani(obj.otf.mskOtf)./obj.otf.otfDen(obj.otf.mskOtf);
     end
 end

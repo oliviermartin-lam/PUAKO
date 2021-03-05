@@ -94,8 +94,7 @@ errorBreakDown(pr)
 % incorrect atmospheric parameter estimation
 trs.res.seeing.r0 = parm.atm.r0;
 trs.res.seeing.L0 = parm.atm.L0;
-
-psfrBench = psfReconstruction(trs,'flagAoPattern','square');
+psfrBench = psfReconstruction(trs,'flagAoPattern','square','flagNoiseMethod','nonoise');
 
 % diplay results: comparing the sytem PSF and the reconstructed PSF
 displayResults(psfrBench)
