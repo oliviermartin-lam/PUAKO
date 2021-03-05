@@ -20,11 +20,17 @@ inputs = inputParser;
 inputs.addRequired('obj',@(x) isa(x,'psfReconstruction'));
 inputs.addParameter('jZernGain',[],@isnumeric);
 inputs.addParameter('method','Vii',@ischar);
+inputs.addParameter('flagResidualMethod','slopes-based',@ischar);
 inputs.parse(obj,varargin{:});
 obj.trs.mat.jZernGain = inputs.Results.jZernGain;
 
 %1\ Get the covariance matrix in the actuators space
-obj.cov.Cao  = obj.trs.rec.res*obj.trs.rec.res'/obj.trs.wfs.nExp;
+if strcmp(inputs.Results.flagResidualMethod,'dm-based')
+    du = diff(obj.trs.dm.com,[],2)/obj.trs.holoop.gain;
+    obj.cov.Cao  = du*du'/obj.trs.wfs.nExp;
+else
+    obj.cov.Cao  = obj.trs.rec.res*obj.trs.rec.res'/obj.trs.wfs.nExp;    
+end
 
 %2\ Get the phase structure function in the actuators space
 Du     = (2*pi/obj.trs.cam.wavelength)^2*(obj.cov.Cao  - obj.trs.res.noise(1).Cn_ho);

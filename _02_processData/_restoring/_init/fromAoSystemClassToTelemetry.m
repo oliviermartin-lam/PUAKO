@@ -3,6 +3,7 @@ inputs = inputParser;
 inputs.addRequired('trs',@(x) isa(x,'telemetry'));
 inputs.addRequired('aoSys',@(x) isa(x,'aoSystem'));
 
+rad2arcsec = 3600 * 180/pi;
 %% 1\ Restore simulations settings
 %1.1 AO config
 trs.aoMode = 'NGS';
@@ -100,7 +101,7 @@ trs.mat.Hdm         = trs.mat.dmIF*trs.mat.dmIF_inv;
 %2.5. Tip-tilt
 trs.tipTilt.tilt2meter  = 1;%!!!!!!
 trs.tipTilt.slopes      = trs.tipTilt.tilt2meter*aoSys.loopData.tiptilt;
-trs.tipTilt.slopes      = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slopes,2));
+trs.tipTilt.slopes      = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slopes,3));
 
 trs.tipTilt.com     = trs.tipTilt.tilt2meter*aoSys.loopData.tiltCom;
 trs.tipTilt.com     = bsxfun(@minus,trs.tipTilt.com,mean(trs.tipTilt.com,2));
@@ -158,9 +159,8 @@ trs.cam.itime       = aoSys.cam.exposureTime*aoSys.tel.samplingTime;
 trs.cam.coadds      = 1;
 
 % this assumes there is a single PSF at the center of the image
-trs.src.x           = 0;
-trs.src.y           = 0;
-trs.src.F           = 10^(-0.4 *aoSys.sci.magnitude) * aoSys.sci.photometry.zeroPoint;
+[trs.src.x,trs.src.y] = pol2cart(aoSys.sci.azimuth,aoSys.sci.zenith*rad2arcsec);
+trs.src.F            = 10^(-0.4 *aoSys.sci.magnitude) * aoSys.sci.photometry.zeroPoint;
 
 trs.sky = psfStats( trs.cam.image,trs.tel.pupil,trs.cam.wavelength,...
     trs.cam.samp,trs.cam.pixelScale,trs.src,'flagMoffat',false,'flagGaussian',false);

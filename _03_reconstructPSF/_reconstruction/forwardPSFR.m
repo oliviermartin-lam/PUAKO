@@ -2,19 +2,21 @@ function psfr = forwardPSFR(psfr,varargin)
 inputs = inputParser;
 inputs.addRequired('psfr',@(x) isa(x,'psfReconstruction'));
 inputs.addParameter('flagToeplitz',false,@islogical);
-inputs.addParameter('flagAnisoMethod','oomao',@ischar);
-inputs.addParameter('flagNoiseMethod','autocorrelation',@ischar);
 inputs.addParameter('flagAoPattern','circle',@ischar);
-inputs.addParameter('statModes',{[]},@iscell);
+inputs.addParameter('flagAnisoMethod','flicker',@ischar);
+inputs.addParameter('flagNoiseMethod','autocorrelation',@ischar);
 inputs.addParameter('flagDphiMethod','Vii',@ischar);
+inputs.addParameter('flagResidualMethod','slopes-based',@ischar);
+inputs.addParameter('statModes',{[]},@iscell);
 inputs.parse(psfr,varargin{:});
 
-psfr.flags.toeplitz     = inputs.Results.flagToeplitz;
-psfr.flags.anisoMethod  = inputs.Results.flagAnisoMethod;
-psfr.flags.noiseMethod  = inputs.Results.flagNoiseMethod;
-psfr.flags.aoPattern    = inputs.Results.flagAoPattern;
-psfr.flags.dphiMethod   = inputs.Results.flagDphiMethod;
-psfr.statModes          = inputs.Results.statModes;
+psfr.flags.toeplitz      = inputs.Results.flagToeplitz;
+psfr.flags.anisoMethod   = inputs.Results.flagAnisoMethod;
+psfr.flags.noiseMethod   = inputs.Results.flagNoiseMethod;
+psfr.flags.aoPattern     = inputs.Results.flagAoPattern;
+psfr.flags.dphiMethod    = inputs.Results.flagDphiMethod;
+psfr.flags.residualMethod= inputs.Results.flagResidualMethod;
+psfr.statModes           = inputs.Results.statModes;
 
 %1\ Noise covariance matrices estimation
 if (isprop(psfr.trs,'res') || isfield(psfr.trs,'res')) && isfield(psfr.trs.res,'noise') && ~isempty(psfr.trs.res.noise) ...
@@ -44,7 +46,7 @@ psfr = computeFittingPhaseStructureFunction(psfr,'aoPattern',psfr.flags.aoPatter
 psfr = computeAliasingPhaseStructureFunction(psfr,'aoPattern',psfr.flags.aoPattern);
 
 %6\ AO residual SF
-psfr = computeResidualPhaseStructureFunction(psfr,'method',psfr.flags.dphiMethod);
+psfr = computeResidualPhaseStructureFunction(psfr,'method',psfr.flags.dphiMethod,'flagResidualMethod',psfr.flags.residualMethod);
 
 %7\ Tip-tilt SF
 psfr = computeTipTiltPhaseStructureFunction(psfr);

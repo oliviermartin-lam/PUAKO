@@ -22,10 +22,11 @@ classdef psfReconstruction < handle
             inputs.addRequired('trs',@(x) isa(x,'telemetry'));
             inputs.addParameter('fov',trs.cam.resolution*2,@isnumeric);
             inputs.addParameter('flagToeplitz',true,@islogical);
+            inputs.addParameter('flagAoPattern','circle',@ischar);
             inputs.addParameter('flagNoiseMethod','autocorrelation',@ischar);
             inputs.addParameter('flagAnisoMethod','flicker',@ischar);
-            inputs.addParameter('flagAoPattern','circle',@ischar);
             inputs.addParameter('flagDphiMethod','Vii',@ischar);
+            inputs.addParameter('flagResidualMethod','slopes-based',@ischar);
             inputs.addParameter('statModes',{[]},@iscell);
             inputs.addParameter('fitbg',false,@islogical);
             inputs.parse(trs,varargin{:});
@@ -38,6 +39,7 @@ classdef psfReconstruction < handle
             obj.flags.anisoMethod   = inputs.Results.flagAnisoMethod;
             obj.flags.aoPattern     = inputs.Results.flagAoPattern;
             obj.flags.dphiMethod    = inputs.Results.flagDphiMethod;
+            obj.flags.residualMethod= inputs.Results.flagResidualMethod;
             obj.statModes           = inputs.Results.statModes;
             obj.flags.fitbg         = inputs.Results.fitbg;
             
@@ -46,8 +48,9 @@ classdef psfReconstruction < handle
             obj = updateReconstructionPrerequisites(obj);
             
             %2\ Reconstruct the PSF
-            obj = forwardPSFR(obj,'flagToeplitz',obj.flags.toeplitz,'flagNoiseMethod',obj.flags.noiseMethod,...
-                'flagAnisoMethod',obj.flags.anisoMethod,'flagAoPattern',obj.flags.aoPattern,'statModes',obj.statModes,'flagDphiMethod',obj.flags.dphiMethod);
+            obj = forwardPSFR(obj,'flagToeplitz',obj.flags.toeplitz,'flagAoPattern',obj.flags.aoPattern,...
+                'flagNoiseMethod',obj.flags.noiseMethod,'flagAnisoMethod',obj.flags.anisoMethod,...
+                'flagDphiMethod',obj.flags.dphiMethod,'statModes',obj.statModes,'flagResidualMethod',obj.flags.residualMethod);
             
             %3\ Process the image
             nSrc    = numel(obj.trs.src);
