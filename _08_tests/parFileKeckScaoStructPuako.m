@@ -1,7 +1,6 @@
 parm = [];
-if ~exist('atmProfile','var')
-    atmProfile = 'median';
-end
+atmProfile = 'median';
+
 %% ATM
 parm.atm.zenithAngle            = pi/6;         % rad
 parm.atm.photometry             = photometry.V0;% photometric band

@@ -7,7 +7,7 @@ rad2arcsec = 3600 * 180/pi;
 %% 1\ Restore simulations settings
 %1.1 AO config
 trs.aoMode = 'NGS';
-if isprop(aoSys,'lGs')
+if isprop(aoSys,'lGs') && ~isempty(aoSys.lGs)
     trs.aoMode = 'LGS';    
 end
 
@@ -47,7 +47,7 @@ trs.wfs.nExp    = size(trs.wfs.slopes,2);
 trs.wfs.theta   = 0;
 
 trs.wfs.pixelScale = 0;
-if isprop(aoSys,'lGs')
+if strcmp(trs.aoMode,'LGS')
     trs.wfs.wavelength = aoSys.lGs.wavelength;
     trs.tipTilt.wavelength = aoSys.nGs.wavelength;
    
@@ -117,7 +117,7 @@ trs.tipTilt.slopes  = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slopes,3
 trs.tipTilt.com     = trs.tipTilt.tilt2meter*aoSys.loopData.tiltCom;
 trs.tipTilt.com     = bsxfun(@minus,trs.tipTilt.com,mean(trs.tipTilt.com,2));
 
-if isprop(aoSys,'lGs')
+if strcmp(trs.aoMode,'LGS')
     trs.tipTilt.nExp    = size(trs.tipTilt.slopes,3);
 else
     trs.tipTilt.nExp    = size(trs.tipTilt.slopes,2);

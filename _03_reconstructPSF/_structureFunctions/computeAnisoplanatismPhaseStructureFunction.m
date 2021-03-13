@@ -36,7 +36,7 @@ if obj.flags.isFocalAniso
     obj.flags.isTiltAniso    = any(~isequal(obj.trs.ngs.x,xSrc)) || any(~isequal(obj.trs.ngs.y,ySrc));
 else
     obj.flags.isAngularAniso = any(~isequal(obj.trs.ngs.x,xSrc)) || any(~isequal(obj.trs.ngs.y,ySrc));
-    obj.flags.isTiltAniso    = False;
+    obj.flags.isTiltAniso    = false;
 end
 obj.flags.isAniso           = obj.flags.isFocalAniso + obj.flags.isAngularAniso + obj.flags.isTiltAniso;
 

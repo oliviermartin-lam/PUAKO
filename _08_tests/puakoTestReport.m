@@ -4,7 +4,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % par files
 parFileKeckScaoStructPuako
-parm.sci.x = 0;% arcsec
+parm.sci.x = 10;% arcsec
 parm.cam.exposureTime = 1000;
 
 % launch the AO simulation
