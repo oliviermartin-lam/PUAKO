@@ -22,11 +22,11 @@ if gs.height ~= Inf
     Hfilter= Hfilter*psfr.trs.mat.Hdm;
     
 elseif gs.height == Inf && isTT
-    %x      = (-1+1/npt:2/npt:1-1/npt);
-    %[X,Y]  = meshgrid(x,x);
-    %TT     = [X(:),Y(:)];
-    zern   = zernike_puako(2:3,npt);
-    TT     = zern.modes;
+    x      = (-1+1/npt:2/npt:1-1/npt);
+    [X,Y]  = meshgrid(x,x);
+    TT     = [X(:),Y(:)];
+    %zern   = zernike_puako(2:3,npt);
+    %TT     = zern.modes;
     Hfilter= TT*pinv(TT);
     
 else
@@ -61,8 +61,8 @@ if strcmpi(psfr.flags.anisoMethod,'FLICKER') % Use the Flicker's 2008 report to 
     % Anisoplanatism Structure Function
     rad2arcsec = 3600 * 180/pi;
     for iSrc = 1:nSrc
-        thx = (psfr.trs.src(iSrc).x(1) - gs.x)/rad2arcsec;
-        thy = (psfr.trs.src(iSrc).y(1) - gs.y)/rad2arcsec;
+        thx = (psfr.trs.src(iSrc).x - gs.x)/rad2arcsec;
+        thy = (psfr.trs.src(iSrc).y - gs.y)/rad2arcsec;
         
         for l = 1:atm.nLayer
             zl   = atm.heights(l);

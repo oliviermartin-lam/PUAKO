@@ -135,6 +135,20 @@ elseif isa(obj,'psfReconstruction')
     srAni =  trapz(u,trapz(u,otf.Kani.*otf.otfDL))/S;
     wfeAni= puakoTools.sr2wfe(srAni, wvl);
     
+    if obj.flags.isTiltAniso
+        wfeAnisoTT = abs(puakoTools.sr2wfe(trapz(u,trapz(u,otf.KaniTT.*otf.otfDL))/S, wvl));
+    else
+        wfeAnisoTT = 0;
+    end
+    
+    if obj.flags.isFocalAniso
+        wfeAnisoAngular = abs(puakoTools.sr2wfe(trapz(u,trapz(u,otf.KaniAng.*otf.otfDL))/S, wvl));
+        wfeFocAniso     = sqrt(wfeAni^2 - wfeAnisoTT^2 - wfeAnisoAngular^2);
+    else
+        wfeAnisoAngular = sqrt(wfeAni^2 - wfeAnisoTT^2); 
+        wfeFocAniso     = 0;
+    end
+    
     srMar = srStatic.*srFit.*srAl.*srAni.*srTT.*srLag;
     wfeTot = puakoTools.sr2wfe(srMar,wvl);
     %%
@@ -172,7 +186,7 @@ elseif isa(obj,'telemetry')
 
     %6.  Residual tip-tilt
     wfeTT = 1e9*sqrt(sum(std(obj.tipTilt.slopes,[],2).^2));
-    srTTN = puakoTools.wfe2sr(wfeTT,wvl);
+    %srTTN = puakoTools.wfe2sr(wfeTT,wvl);
     wfeTT = sqrt(wfeTT^2 - wfeNoiseTT^2);
     srTT = puakoTools.wfe2sr(wfeTT,wvl);
     
@@ -207,12 +221,14 @@ if display
     fprintf('Servo-lag\t\t%.4g\n',wfeLag);
     fprintf('WFS noise\t\t%.4g\n',wfeNoise);
     fprintf('WFS aliasing\t\t%.4g\n',wfeAl);
-    fprintf('Anisoplanatism\t%.4g\n',max(wfeAni));
-    %fprintf('Focal anisoplanatism.\t%.4g\n',wfeAnisoLGS);
     fprintf('-------------------------------\n');
     fprintf('Tip-tilt bandwidth\t%.4g\n',wfeTT);
     fprintf('Tip-tilt noise\t\t%.4g\n',wfeNoiseTT);
-    %fprintf('Tip-tilt anisoplanatism\t%g\n',wfeAnisoTT);
+    fprintf('-------------------------------\n');
+    fprintf('Total Anisoplanatism\t%.4g\n',max(wfeAni));
+    fprintf('Focal anisoplanatism.\t%.4g\n',wfeFocAniso);
+    fprintf('Angular-anisoplanatism\t%.4g\n',wfeAnisoAngular);
+    fprintf('Anisokinetism\t\t%.4g\n',wfeAnisoTT);
     fprintf('-------------------------------\n');
 end
 

@@ -20,7 +20,7 @@ L0_estFromTelem = trs.res.seeing.L0;
 
 % hack the estimation to check to set aside PSFR innacuracy on account of
 % incorrect atmospheric parameter estimation
-psfr = psfReconstruction(trs,'flagAoPattern','square','flagNoisemethod','nonoise');
+psfr = psfReconstruction(trs,'flagAoPattern','square','flagNoisemethod','nonoise','flagResidualMethod','slopes-based');
 
 % diplay results: comparing the sytem PSF and the reconstructed PSF
 displayResults(psfr)
@@ -61,9 +61,8 @@ errorBreakDown(pr)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % par files
 parFileKeckSlaoStructPuako
-%parFileSLAO
 parm.cam.exposureTime = 1000;
-%parm.sci.x = 0;% arcsec
+parm.sci.x = 10;% arcsec
 
 % launch the AO simulation
 aoSys = aoSystem(parm,'runSimulation',true);
@@ -75,7 +74,7 @@ L0_estFromTelem = trs.res.seeing.L0;
 
 %% INSTANTIATE A PSFR CLASS
 
-psfr = psfReconstruction(trs,'flagAoPattern','square','flagNoiseMethod','nonoise');
+psfr = psfReconstruction(trs,'flagAoPattern','square','flagNoiseMethod','nonoise','flagAnisoMethod','flicker');
 
 % diplay results: comparing the sytem PSF and the reconstructed PSF
 displayResults(psfr)

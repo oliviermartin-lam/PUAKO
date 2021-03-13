@@ -106,7 +106,6 @@ classdef telemetry < handle
                 else
                     obj.aoMode = 'LGS';
                 end
-                    
                 
                 %3\ Restoring Calibrated data
                 obj = restoreCalibratedData(obj,getImageOnly);

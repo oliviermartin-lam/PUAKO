@@ -7,12 +7,11 @@ rad2arcsec = 3600 * 180/pi;
 %% 1\ Restore simulations settings
 %1.1 AO config
 trs.aoMode = 'NGS';
-if ~isempty(aoSys.lGs)
+if isprop(aoSys,'lGs')
     trs.aoMode = 'LGS';    
 end
+
 %1.2. Atmospheric config
-
-
 trs.atm.wavelength      = aoSys.atm.wavelength;
 trs.atm.r0              = aoSys.atm.r0;
 trs.atm.L0              = aoSys.atm.L0;
@@ -48,10 +47,15 @@ trs.wfs.nExp    = size(trs.wfs.slopes,2);
 trs.wfs.theta   = 0;
 
 trs.wfs.pixelScale = 0;
-if isfield('aoSys','lGs')
+if isprop(aoSys,'lGs')
     trs.wfs.wavelength = aoSys.lGs.wavelength;
-    trs.wfstt.wavelength = aoSys.nGs.wavelength;
+    trs.tipTilt.wavelength = aoSys.nGs.wavelength;
    
+    % LGS source
+    trs.lgs.height      = aoSys.lGs.height;
+    xLGS                = [aoSys.lGs.directionVector];
+    trs.lgs.x           = xLGS(1,:);
+    trs.lgs.y           = xLGS(2,:);
     % LGS WFS pixel scale calculation
     d                   = aoSys.tel.D/size(aoSys.wfs.validLenslet,1);
     nPxDetector         = size(aoSys.wfs.camera.frame,1)/aoSys.wfs.lenslets.nLenslet;
@@ -65,6 +69,7 @@ if isfield('aoSys','lGs')
     binFactor           = 2*aoSys.lowfs.lenslets.fieldStopSize*aoSys.lowfs.lenslets.nyquistSampling/nPxDetector;
     lo2DInMas           = aoSys.nGs(1).wavelength/(2*d)*constants.radian2mas;
     trs.wfs.pixelScale  = lo2DInMas/aoSys.lowfs.lenslets.nyquistSampling*binFactor;
+    
 else
     trs.wfs.wavelength  = aoSys.nGs.wavelength;
     % NGS WFS pixel scale calculation
@@ -73,11 +78,17 @@ else
     binFactor           = 2*aoSys.wfs.lenslets.fieldStopSize*aoSys.wfs.lenslets.nyquistSampling/nPxDetector;
     lo2DInMas           = aoSys.nGs(1).wavelength/(2*d)*constants.radian2mas;
     trs.wfs.pixelScale  = lo2DInMas/aoSys.wfs.lenslets.nyquistSampling*binFactor;
+end
+
+% NGS source
+xNGS      = [aoSys.nGs.directionVector];
+trs.ngs.x = xNGS(1,:);
+trs.ngs.y = xNGS(2,:);
     
 %2.2 WFS pixels intensity
 nPix = aoSys.wfs.camera.resolution(1);
 trs.wfs.intensity = zeros(nPix,nPix);
-if isfield('intensity','aoSys.loopData')
+if isprop(aoSys.loopData,'intensity')
     trs.wfs.intensity = median(aoSys.loopData.intensity,3);
 end
 
@@ -100,13 +111,18 @@ trs.mat.Hdm         = trs.mat.dmIF*trs.mat.dmIF_inv;
 
 %2.5. Tip-tilt
 trs.tipTilt.tilt2meter  = 1;%!!!!!!
-trs.tipTilt.slopes      = trs.tipTilt.tilt2meter*aoSys.loopData.tiptilt;
-trs.tipTilt.slopes      = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slopes,3));
+trs.tipTilt.slopes  = trs.tipTilt.tilt2meter*aoSys.loopData.tiptilt;
+trs.tipTilt.slopes  = bsxfun(@minus,trs.tipTilt.slopes,mean(trs.tipTilt.slopes,3));
 
 trs.tipTilt.com     = trs.tipTilt.tilt2meter*aoSys.loopData.tiltCom;
 trs.tipTilt.com     = bsxfun(@minus,trs.tipTilt.com,mean(trs.tipTilt.com,2));
-trs.tipTilt.nExp    = size(trs.tipTilt.slopes,3);    
 
+if isprop(aoSys,'lGs')
+    trs.tipTilt.nExp    = size(trs.tipTilt.slopes,3);
+else
+    trs.tipTilt.nExp    = size(trs.tipTilt.slopes,2);
+end
+        
 %% 3\ Get system matrices
 %3.1\ Get DM commands reconstructors from slopes
 MC          = aoSys.matrices.DMTTRem*aoSys.wfs2dm.M*aoSys.matrices.SlopeTTRem; %command matrix

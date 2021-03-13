@@ -30,27 +30,36 @@ obj.otf.Kani    = 1;
 %1\ Verify if there is anisoplanatism
 xSrc                        = cell2mat({obj.trs.src.x});
 ySrc                        = cell2mat({obj.trs.src.y});
-obj.flags.isAngularAniso    = strcmp(obj.trs.aoMode,'NGS') && any(~isequal(obj.trs.ngs.x,xSrc)) || any(~isequal(obj.trs.ngs.y,ySrc));
 obj.flags.isFocalAniso      = strcmp(obj.trs.aoMode,'LGS');
-obj.flags.isTiltAniso       = strcmp(obj.trs.aoMode,'LGS') && (obj.trs.ngs.x~=0 || obj.trs.ngs.y~=0);    
+if obj.flags.isFocalAniso
+    obj.flags.isAngularAniso = any(~isequal(obj.trs.lgs.x,xSrc)) || any(~isequal(obj.trs.lgs.y,ySrc));
+    obj.flags.isTiltAniso    = any(~isequal(obj.trs.ngs.x,xSrc)) || any(~isequal(obj.trs.ngs.y,ySrc));
+else
+    obj.flags.isAngularAniso = any(~isequal(obj.trs.ngs.x,xSrc)) || any(~isequal(obj.trs.ngs.y,ySrc));
+    obj.flags.isTiltAniso    = False;
+end
 obj.flags.isAniso           = obj.flags.isFocalAniso + obj.flags.isAngularAniso + obj.flags.isTiltAniso;
 
 if obj.flags.isAniso    
-    r053 =  (obj.trs.atm.r0*(obj.trs.cam.wavelength/obj.trs.atm.wavelength)^1.2)^(-5/3);
+    r053 =  obj.trs.atm.r0^(-5/3)  *(obj.trs.atm.wavelength/obj.trs.cam.wavelength)^2;
     %Note: I consider that the seeing estimated from the telemetry is the
     %DIMM seeing plus dome seeing, i.e. I trust the absolute value of Cn2
     %coming from the MASS. SO I do not rescale the profile regarding the
     %telemetry seeing.
     Cn2 = obj.trs.atm.weights*r053;
     
-    if obj.flags.isAngularAniso
+    if obj.flags.isAngularAniso && ~obj.flags.isFocalAniso
         %1\ Get the angular-anisoplanatism phase structure function
         obj.sf.Dani_l = instantiateAnisoplanatism(obj,obj.trs.ngs);   
     
     elseif obj.flags.isFocalAniso
         %2\ Get the focal-angular-anisoplanatism phase structure function
-        obj.sf.Dani_l = instantiateAnisoplanatism(obj,obj.trs.lgs);
-    
+        obj.sf.Dani_l     = instantiateAnisoplanatism(obj,obj.trs.lgs);
+        lgsInf            = obj.trs.lgs;
+        % get the angular anisoplanatism contribution
+        lgsInf.height     = Inf;
+        tmp               = instantiateAnisoplanatism(obj,lgsInf);
+        obj.otf.KaniAng   = exp(-0.5*squeeze(sum(bsxfun(@times, tmp , reshape(Cn2,1,1,[])), 3)));
     end
     
     obj.sf.Dani = squeeze(sum(bsxfun(@times, obj.sf.Dani_l , reshape(Cn2,1,1,[])), 3));
@@ -58,7 +67,9 @@ if obj.flags.isAniso
     if obj.flags.isTiltAniso
         %3\ Get the tip-tilt anisoplanatism phase structure function
         obj.sf.DaniTT_l     = instantiateAnisoplanatism(obj,obj.trs.ngs,'isTT',true);
-        obj.sf.Dani         = squeeze(obj.sf.Dani+ sum(bsxfun(@times, obj.sf.DaniTT_l, reshape(Cn2,1,1,[])), 3));
+        obj.sf.DaniTT       = sum(bsxfun(@times, obj.sf.DaniTT_l, reshape(Cn2,1,1,[])), 3);
+        obj.otf.KaniTT      = exp(-0.5*obj.sf.DaniTT);
+        obj.sf.Dani         = squeeze(obj.sf.Dani+ obj.sf.DaniTT);
         obj.sf.Dani_l       = obj.sf.Dani_l  + obj.sf.DaniTT_l;
     end
     
