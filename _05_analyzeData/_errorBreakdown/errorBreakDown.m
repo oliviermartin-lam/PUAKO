@@ -215,7 +215,7 @@ if display
     fprintf('Strehl Parenti\t\t%.3g%s\t\n',1e2*srPar,'%');
     fprintf('Wavefront error (nm)\t%.4g\t\n',wfeTot);
     fprintf('-------------------------------\n');
-    fprintf('Residual Static\t%.4g\n',wfeStatic);
+    fprintf('Residual Static\t\t%.4g\n',wfeStatic);
     fprintf('Atmospheric Fitting\t%.4g\n',wfeFit);
     fprintf('-------------------------------\n');
     fprintf('Servo-lag\t\t%.4g\n',wfeLag);
@@ -226,7 +226,7 @@ if display
     fprintf('Tip-tilt noise\t\t%.4g\n',wfeNoiseTT);
     fprintf('-------------------------------\n');
     fprintf('Total Anisoplanatism\t%.4g\n',max(wfeAni));
-    fprintf('Focal anisoplanatism.\t%.4g\n',wfeFocAniso);
+    fprintf('Focal anisoplanatism\t%.4g\n',wfeFocAniso);
     fprintf('Angular-anisoplanatism\t%.4g\n',wfeAnisoAngular);
     fprintf('Anisokinetism\t\t%.4g\n',wfeAnisoTT);
     fprintf('-------------------------------\n');
