@@ -86,7 +86,7 @@ for iSrc = 1:obj.psfr.trs.src(obj.idSrc).nObj
         sf.Dani = sum(bsxfun(@times, squeeze(sf.Dani_l(:,:,:,iSrc)), reshape(Cn2,1,1,[])), 3);  
         %3.3 OTF Multiplication
         otf.Kani = exp(-0.5*sf.Dani);
-        otf.otfShannon = otfOn.*sf.Kani;
+        otf.otfShannon = otfOn.*otf.Kani;
     else
         otf.otfShannon = otfOn;
     end
