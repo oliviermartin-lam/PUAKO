@@ -55,8 +55,9 @@ if obj.flags.isAniso
         lgsInf            = obj.trs.lgs;
         % get the angular anisoplanatism contribution
         lgsInf.height     = Inf;
-        tmp               = instantiateAnisoplanatism(obj,lgsInf);
-        obj.otf.KaniAng   = exp(-0.5*squeeze(sum(bsxfun(@times, tmp , reshape(Cn2,1,1,[])), 3)));
+        obj.sf.DaniAng_l  = instantiateAnisoplanatism(obj,lgsInf);
+        obj.sf.DaniAng    = squeeze(sum(bsxfun(@times, obj.sf.DaniAng_l , reshape(Cn2,1,1,[])), 3));
+        obj.otf.KaniAng   = exp(-0.5*obj.sf.DaniAng);
     end
     
     obj.sf.Dani = squeeze(sum(bsxfun(@times, obj.sf.Dani_l , reshape(Cn2,1,1,[])), 3));
