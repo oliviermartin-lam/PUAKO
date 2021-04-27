@@ -4,8 +4,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % par files
 parFileKeckScaoStructPuako
-parm.sci.x = 0;% arcsec
-parm.cam.exposureTime = 1000;
+parm.sci.x = 10;% arcsec
+parm.cam.exposureTime = 100;
 
 % launch the AO simulation
 aoSys = aoSystem(parm,'runSimulation',true);
@@ -25,7 +25,7 @@ psfr = psfReconstruction(trs,'flagAoPattern','square','flagNoisemethod','nonoise
 % diplay results: comparing the sytem PSF and the reconstructed PSF
 displayResults(psfr)
 
-errorBreakDown(psfr)
+errorBreakDown(psfr,'display',true);
 
 % psfr = psfReconstruction(trs,'flagAoPattern','square','flagDphiMethod','zonal');
 % 
@@ -86,7 +86,8 @@ errorBreakDown(psfr)
 
 % hack the estimation to check to set aside PSFR innacuracy on account of
 % incorrect atmospheric parameter estimation
-trs.res.seeing.r0 = parm.atm.r0;
+airmass = 1/cos(parm.atm.zenithAngle);
+trs.res.seeing.r0 = parm.atm.r0 * airmass^(-3/5);
 trs.res.seeing.L0 = parm.atm.L0;
 
 psfrBench = psfReconstruction(trs,'flagAoPattern','square','flagNoiseMethod','nonoise');
@@ -100,7 +101,7 @@ errorBreakDown(psfrBench)
 %% PRIME FOR THE HYBRID RECONSTRUCTION (ESTIMATION OF 
 pr = prime(psfr,'fitCn2',false);
 displayResults(pr)
-errorBreakDown(pr)
+errorBreakDown(pr,'display',true);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -109,8 +110,8 @@ errorBreakDown(pr)
 % par files
 parFileKeckSlaoStructPuako
 parm.cam.exposureTime = 1000;
-parm.sci.x = 0;% arcsec
-parm.nGs.x = 10;% arcsec
+parm.sci.x = 10;% arcsec
+parm.nGs.x = 0;% arcsec
 
 % launch the AO simulation
 aoSys = aoSystem(parm,'runSimulation',true);
@@ -139,13 +140,14 @@ errorBreakDown(pr)
 
 % hack the estimation to check to set aside PSFR innacuracy on account of
 % incorrect atmospheric parameter estimation
-trs.res.seeing.r0 = parm.atm.r0;
+airmass = 1/cos(parm.atm.zenithAngle);
+trs.res.seeing.r0 = parm.atm.r0 * airmass^(-3/5);
 trs.res.seeing.L0 = parm.atm.L0;
 psfrBench = psfReconstruction(trs,'flagAoPattern','square','flagNoiseMethod','nonoise');
 
 % diplay results: comparing the sytem PSF and the reconstructed PSF
 displayResults(psfrBench)
 
-errorBreakDown(psfrBench)
+errorBreakDown(psfrBench,'display',true);
 
 

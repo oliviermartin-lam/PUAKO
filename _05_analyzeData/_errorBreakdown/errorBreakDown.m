@@ -36,7 +36,7 @@ if isa(obj,'prime')
     wvl = obj.psfr.trs.cam.wavelength;
     otf   = obj.psfr.otf;
     sf     = obj.psfr.sf;
-     notf  = size(otf.otfDL,1);
+    notf  = size(otf.otfDL,1);
     u       = linspace(-1,1-~mod(notf,2)/notf,notf);
     S       = trapz(u,trapz(u,otf.otfDL));
     r0src = obj.atm_fit.r0;
@@ -84,11 +84,26 @@ if isa(obj,'prime')
     %7\  Anisoplanatism
     srAni = real(trapz(u,trapz(u,otf.Kani.*otf.otfDL)))/S;
     wfeAni= puakoTools.sr2wfe(srAni, wvl);
+    if obj.psfr.flags.isTiltAniso
+        wfeAnisoTT = abs(puakoTools.sr2wfe(trapz(u,trapz(u,otf.KaniTT.*otf.otfDL))/S, wvl));
+    else
+        wfeAnisoTT = 0;
+    end
+    
+    if obj.psfr.flags.isFocalAniso
+        wfeAnisoAngular = abs(puakoTools.sr2wfe(trapz(u,trapz(u,otf.KaniAng.*otf.otfDL))/S, wvl));
+        wfeFocAniso     = sqrt(wfeAni^2 - wfeAnisoTT^2 - wfeAnisoAngular^2);
+    else
+        wfeAnisoAngular = sqrt(wfeAni^2 - wfeAnisoTT^2);
+        wfeFocAniso     = 0;
+    end
     
     SRcam = obj.psf.SR;
     dSRcam = obj.psf.dSR;
     srMar = srStatic.*srFit.*srAl.*srAni.*srTT.*srLag;
     wfeTot = puakoTools.sr2wfe(srMar,wvl);
+    
+    
     %%
 elseif isa(obj,'psfReconstruction')
     trs = obj.trs;
@@ -237,9 +252,12 @@ wfe.sr_par      = srPar;
 wfe.wfe_tot     = wfeTot;
 wfe.wfe_ncpa    = wfeStatic;
 wfe.wfe_fit     = wfeFit;
-wfe.wfe_lag      = wfeLag;
+wfe.wfe_lag     = wfeLag;
 wfe.wfe_noise   = wfeNoise;
 wfe.wfe_alias   = wfeAl;
 wfe.wfe_aniso   = wfeAni;
-wfe.wfe_tt  = wfeTT;
+wfe.wfe_angAniso= wfeAnisoAngular;
+wfe.wfe_focAniso= wfeFocAniso;
+wfe.wfe_tt      = wfeTT;
 wfe.wfe_noiseTT = wfeNoiseTT;
+wfe.wfe_anisoTT = wfeAnisoTT;

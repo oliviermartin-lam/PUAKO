@@ -53,9 +53,11 @@ if strcmp(trs.aoMode,'LGS')
    
     % LGS source
     trs.lgs.height      = aoSys.lGs.height;
-    xLGS                = [aoSys.lGs.directionVector];
-    trs.lgs.x           = xLGS(1,:);
-    trs.lgs.y           = xLGS(2,:);
+    %xLGS                = [aoSys.lGs.directionVector];
+    %trs.lgs.x           = xLGS(1,:);
+    %trs.lgs.y           = xLGS(2,:);
+    [trs.ngs.x,trs.ngs.y] = pol2cart(aoSys.lGs.azimuth,aoSys.lGs.zenith);
+
     % LGS WFS pixel scale calculation
     d                   = aoSys.tel.D/size(aoSys.wfs.validLenslet,1);
     nPxDetector         = size(aoSys.wfs.camera.frame,1)/aoSys.wfs.lenslets.nLenslet;
@@ -81,10 +83,11 @@ else
 end
 
 % NGS source
-xNGS      = [aoSys.nGs.directionVector];
-trs.ngs.x = xNGS(1,:);
-trs.ngs.y = xNGS(2,:);
-    
+%xNGS      = [aoSys.nGs.directionVector];
+%trs.ngs.x = xNGS(1,:);
+%trs.ngs.y = xNGS(2,:);
+[trs.ngs.x,trs.ngs.y] = pol2cart(aoSys.nGs.azimuth,aoSys.nGs.zenith);
+
 %2.2 WFS pixels intensity
 nPix = aoSys.wfs.camera.resolution(1);
 trs.wfs.intensity = zeros(nPix,nPix);
@@ -175,7 +178,7 @@ trs.cam.itime       = aoSys.cam.exposureTime*aoSys.tel.samplingTime;
 trs.cam.coadds      = 1;
 
 % this assumes there is a single PSF at the center of the image
-[trs.src.x,trs.src.y] = pol2cart(aoSys.sci.azimuth,aoSys.sci.zenith*rad2arcsec);
+[trs.src.x,trs.src.y] = pol2cart(aoSys.sci.azimuth,aoSys.sci.zenith);
 trs.src.F            = 10^(-0.4 *aoSys.sci.magnitude) * aoSys.sci.photometry.zeroPoint;
 
 trs.sky = psfStats( trs.cam.image,trs.tel.pupil,trs.cam.wavelength,...

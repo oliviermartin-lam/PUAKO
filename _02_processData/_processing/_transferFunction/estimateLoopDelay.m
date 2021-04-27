@@ -4,8 +4,8 @@ Objective          ::  Estimate loops delays
 INPUT VARS
 wssmprg              :: Header field from the TRS structurue
 OUTPUT VARS
-r0               :: HO loop delay in seconds
-L0               :: TT loop delay in seconds
+delay            :: HO loop delay in seconds
+delay_tt         :: TT loop delay in seconds
 Created by       :: O. Beltramo-Martin - ONERA/LAM
 Creation date   :: 11/01/2019
                       

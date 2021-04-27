@@ -114,7 +114,7 @@ xlabel('Angular frequency (D/$\lambda$)','interpreter','latex','FontSize',fontsi
 ylabel('MTF profile','interpreter','latex','FontSize',fontsize);
 xlim([0,1]);
 id = find(u>1);
-ylim([mtel(id(1)),1.05])
+ylim([1e-5,1.05])
 legend({'Telescope MTF','Sky MTF',resultsof,'Residual'},'interpreter','latex','FontSize',fontsize,'Location','southwest');
 set(gca,'FontSize',fontsize,'FontName','cmr12','TickLabelInterpreter','latex' );
 pbaspect([1.6,1,1]);
