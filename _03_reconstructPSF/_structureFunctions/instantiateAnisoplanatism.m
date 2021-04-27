@@ -45,7 +45,7 @@ if isTT % -> anisokinetism as a Gaussian kernel
                 if atm.heights(l) ~=0
                     % update the atmosphere
                     atm_l = atm_oomao.slab(l);
-                    fr0   = atm_l.r0^(-5/3) * atm_oomao.layer(l).fractionnalR0;
+                    fr0   = atm_l.r0^(-5/3);% * atm_oomao.layer(l).fractionnalR0;
                     % Get the 2x2 covariance matrices of the tip-tilt
                     covTT = zernikeStats.angularCovariance(zern,atm_l,[sci(iSrc),sci(iSrc),ngs]);
                     % get the 2x2 anisokinetism covariance matrix
@@ -99,10 +99,10 @@ else %-> focal-angular anisokinetism
         cte     = 0.12184*0.06*(2*pi)^2;
         
         % Anisoplanatism Structure Function
-        rad2arcsec = 3600 * 180/pi;
+        %rad2arcsec = 3600 * 180/pi;
         for iSrc = 1:nSrc
-            thx = (psfr.trs.src(iSrc).x - gs.x)/rad2arcsec;
-            thy = (psfr.trs.src(iSrc).y - gs.y)/rad2arcsec;
+            thx = (psfr.trs.src(iSrc).x - gs.x);
+            thy = (psfr.trs.src(iSrc).y - gs.y);
             
             for l = 1:atm.nLayer
                 zl   = atm.heights(l);

@@ -1,14 +1,15 @@
 parm = [];
 atmProfile = 'median';
 
-%% ATM
+%% ATM 
+% WARNING : DO NOT SCALE THE R0 AND ALTITUDE WRT THE ZENITH ANGLE
 parm.atm.zenithAngle            = pi/6;         % rad
 parm.atm.photometry             = photometry.V0;% photometric band
 parm.atm.windSpeed              = 10;           % wind speed vector in m/s
 parm.atm.windDirection          = 0;            % wind direction vector in rad
-parm.atm.r0                     = 0.16*cos(parm.atm.zenithAngle )^(3/5); % coherence lenght in meters at 0.5microns
+parm.atm.r0                     = 0.16; % coherence lenght in meters at 0.5microns
 parm.atm.L0                     = 50;           % Outer scale in meters
-parm.atm.altitude               = [0 0.5 1 2 4 8 16].*1e3./cos(parm.atm.zenithAngle ); % altitude vector in meters
+parm.atm.altitude               = [0 0.5 1 2 4 8 16].*1e3; % altitude vector in meters
 % fractional Cn2 profile (sum=1)
 switch atmProfile
     case 'median'
@@ -18,21 +19,6 @@ switch atmProfile
 end
 parm.atm.windSpeed              = [6.8 6.9 7.1 7.5 10.0 26.9 18.5];
 parm.atm.windDirection          = [0 pi/2 pi/4 3*pi/2 8*pi/3 pi/8 pi];    
-
-
-% %%
-% parm = [];
-% 
-% %% ATM
-% parm.atm.zenithAngle            = pi/6;                         % rad
-% airmass                         = 1/cos(parm.atm.zenithAngle);
-% parm.atm.photometry             = photometry.V0;                % photometric band
-% parm.atm.windSpeed              = [10,25,15];                   % wind speed vector in m/s
-% parm.atm.windDirection          = [0,pi/3,pi/2];                % wind direction vector in rad
-% parm.atm.r0                     = 0.12/airmass^(3/5);           % coherence lenght in meters at 0.5microns
-% parm.atm.L0                     = 25;                           % Outer scale in meters
-% parm.atm.altitude               = [0,5,10]*1e3*airmass;         % altitude vector in meters
-% parm.atm.fractionalR0           = [.5,.3,.2];                   % fractional Cn2 profile (sum=1)
 
 %% SCIENCE                                              
 parm.sci.magnitude              = 0;                            % stellar magnitude
@@ -88,7 +74,7 @@ parm.wfs.frameRate              = 1;                            % slaved to tel.
 parm.wfs.ron                    = 0;                            % ron in e-
 parm.wfs.photonNoise            = false;                        % true/false statement
 parm.wfs.pixelThreshold         = parm.wfs.ron/2;               % Pixel threshold in the cog algorithm
-parm.wfs.throughput             = .6;                           % [0-1] throughput ratio 
+parm.wfs.throughput             = .3;                           % [0-1] throughput ratio 
 
 %% DEFORMABLE MIRROR
 parm.dm.pitch                   = 0.5625;                          % dm pitch

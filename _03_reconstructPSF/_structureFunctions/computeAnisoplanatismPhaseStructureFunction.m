@@ -41,11 +41,8 @@ end
 obj.flags.isAniso           = obj.flags.isFocalAniso + obj.flags.isAngularAniso + obj.flags.isTiltAniso;
 
 if obj.flags.isAniso    
-    r053 =  obj.trs.atm.r0^(-5/3)  *(obj.trs.atm.wavelength/obj.trs.cam.wavelength)^2;
-    %Note: I consider that the seeing estimated from the telemetry is the
-    %DIMM seeing plus dome seeing, i.e. I trust the absolute value of Cn2
-    %coming from the MASS. SO I do not rescale the profile regarding the
-    %telemetry seeing.
+    r053 =  obj.trs.res.seeing.r0^(-5/3)  *(obj.trs.atm.wavelength/obj.trs.cam.wavelength)^2;
+    %Note: I do consider that the seeing estimated from the telemetry applies to all layers
     Cn2 = obj.trs.atm.weights*r053;
     
     if obj.flags.isAngularAniso && ~obj.flags.isFocalAniso
