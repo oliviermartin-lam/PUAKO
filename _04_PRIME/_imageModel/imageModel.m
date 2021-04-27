@@ -85,7 +85,8 @@ for iSrc = 1:obj.psfr.trs.src(obj.idSrc).nObj
         Cn2     = Cn2/sum(Cn2)*r053; %works regardless we fit Cn2 or not
         sf.Dani = sum(bsxfun(@times, squeeze(sf.Dani_l(:,:,:,iSrc)), reshape(Cn2,1,1,[])), 3);  
         %3.3 OTF Multiplication
-        otf.otfShannon = otfOn.*exp(-0.5*sf.Dani);
+        otf.Kani = exp(-0.5*sf.Dani);
+        otf.otfShannon = otfOn.*sf.Kani;
     else
         otf.otfShannon = otfOn;
     end
