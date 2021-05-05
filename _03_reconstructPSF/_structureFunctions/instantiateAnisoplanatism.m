@@ -45,7 +45,7 @@ if isTT % -> anisokinetism as a Gaussian kernel
                 if atm.heights(l) ~=0
                     % update the atmosphere
                     atm_l = atm_oomao.slab(l);
-                    fr0   = atm_l.r0^(-5/3);% * atm_oomao.layer(l).fractionnalR0;
+                    fr0   = atm_l.r0^(-5/3) * atm_l.layer(1).fractionnalR0;
                     % Get the 2x2 covariance matrices of the tip-tilt
                     covTT = zernikeStats.angularCovariance(zern,atm_l,[sci(iSrc),sci(iSrc),ngs]);
                     % get the 2x2 anisokinetism covariance matrix

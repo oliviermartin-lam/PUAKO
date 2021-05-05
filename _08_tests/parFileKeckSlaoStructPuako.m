@@ -15,9 +15,9 @@ airmass                         = 1/cos(parm.atm.zenithAngle);
 parm.atm.photometry             = photometry.V0;% photometric band
 parm.atm.windSpeed              = 10;           % wind speed vector in m/s
 parm.atm.windDirection          = 0;            % wind direction vector in rad
-parm.atm.r0                     = 0.16*cos(parm.atm.zenithAngle )^(3/5); % coherence lenght in meters at 0.5microns
+parm.atm.r0                     = 0.16;%*cos(parm.atm.zenithAngle )^(3/5); % coherence lenght in meters at 0.5microns
 parm.atm.L0                     = 50;           % Outer scale in meters
-parm.atm.altitude               = [0 0.5 1 2 4 8 16].*1e3./cos(parm.atm.zenithAngle ); % altitude vector in meters
+parm.atm.altitude               = [0 0.5 1 2 4 8 16].*1e3;%./cos(parm.atm.zenithAngle ); % altitude vector in meters
 parm.atm.windSpeed              = [6.8 6.9 7.1 7.5 10.0 26.9 18.5];
 parm.atm.windDirection          = [0 pi/2 pi/4 3*pi/2 8*pi/3 pi/8 pi];    
 

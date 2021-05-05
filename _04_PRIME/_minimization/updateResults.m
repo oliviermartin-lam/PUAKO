@@ -112,6 +112,14 @@ function obj = updateResults(obj)
             obj.catalog_fit.fvu = puakoTools.getFVU(obj.psfr.trs.cam.image(:,:,obj.idSrc),obj.psf.image);
             obj.catalog_fit.mse = 1e2*sqrt(sum( sum((obj.psfr.trs.cam.image(:,:,obj.idSrc)-obj.psf.image).^2)))/sum(sum(obj.psfr.trs.cam.image(:,:,obj.idSrc)));
             obj.catalog_fit.mae = 1e2*(sum( sum(abs(obj.psfr.trs.cam.image(:,:,obj.idSrc)-obj.psf.image))))/sum(sum(obj.psfr.trs.cam.image(:,:,obj.idSrc)));
-        end
+        
+            %10\ Updating the Anisoplanatic kernel
+            if obj.psfr.flags.isFocalAniso && ~isempty(obj.idxCn2)
+                obj.psfr.sf.DaniAng = sum(bsxfun(@times, obj.psfr.sf.DaniAng_l, reshape(obj.atm_fit.Cn2,1,1,[])), 3);
+                obj.psfr.otf.KaniAng = exp(-0.5*obj.psfr.sf.DaniAng); 
+                obj.psfr.sf.DaniTT  = sum(bsxfun(@times, obj.psfr.sf.DaniTT_l, reshape(obj.atm_fit.Cn2,1,1,[])), 3);
+                obj.psfr.otf.KaniTT = exp(-0.5*obj.psfr.sf.DaniTT); 
+            end
+    end
         
         

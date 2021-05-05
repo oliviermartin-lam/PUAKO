@@ -25,7 +25,6 @@ aoPattern = inputs.Results.aoPattern;
 %1\ Parsing inputs
 r0 = obj.trs.res.seeing.r0*(obj.trs.cam.wavelength/0.5e-6)^1.2;
 L0 = obj.trs.res.seeing.L0;
-nActu = obj.trs.dm.nActuators;
 nT = obj.otf.nTimes;
 d = obj.trs.dm.pitch;
 %2\ Define the frequency space

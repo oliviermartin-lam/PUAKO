@@ -45,7 +45,7 @@ trs.wfs.slopes  = bsxfun(@minus,trs.wfs.slopes ,mean(trs.wfs.slopes ,2));
 trs.wfs.nSl     = size(trs.wfs.slopes,1);
 trs.wfs.nExp    = size(trs.wfs.slopes,2);
 trs.wfs.theta   = 0;
-
+trs.wfs.dsub    = aoSys.tel.D/aoSys.wfs.lenslets.nLenslet;
 trs.wfs.pixelScale = 0;
 if strcmp(trs.aoMode,'LGS')
     trs.wfs.wavelength = aoSys.lGs.wavelength;
@@ -64,13 +64,12 @@ if strcmp(trs.aoMode,'LGS')
     binFactor           = 2*aoSys.wfs.lenslets.fieldStopSize*aoSys.wfs.lenslets.nyquistSampling/nPxDetector;
     lo2DInMas           = aoSys.lGs(1).wavelength/(2*d)*constants.radian2mas;
     trs.wfs.pixelScale  = lo2DInMas/aoSys.wfs.lenslets.nyquistSampling*binFactor;
-    
     % LO WFS pixel scale calculation : 
     d                   = aoSys.tel.D/size(aoSys.lowfs.validLenslet,1);
     nPxDetector         = size(aoSys.lowfs.camera.frame,1)/aoSys.lowfs.lenslets.nLenslet;
     binFactor           = 2*aoSys.lowfs.lenslets.fieldStopSize*aoSys.lowfs.lenslets.nyquistSampling/nPxDetector;
     lo2DInMas           = aoSys.nGs(1).wavelength/(2*d)*constants.radian2mas;
-    trs.wfs.pixelScale  = lo2DInMas/aoSys.lowfs.lenslets.nyquistSampling*binFactor;
+    trs.tipTilt.pixelScale  = lo2DInMas/aoSys.lowfs.lenslets.nyquistSampling*binFactor;
     
 else
     trs.wfs.wavelength  = aoSys.nGs.wavelength;

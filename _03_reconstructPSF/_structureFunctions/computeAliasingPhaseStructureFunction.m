@@ -31,7 +31,7 @@ ts = 1/obj.trs.holoop.freq;
 td = obj.trs.holoop.lat;
 varn = (2*pi*obj.trs.res.noise.std_ho*1e-9/obj.trs.cam.wavelength)^2;
 g = obj.trs.holoop.gain;
-d = obj.trs.dm.pitch;
+d = obj.trs.wfs.dsub;
 
 
 %2\ Define the frequency space
