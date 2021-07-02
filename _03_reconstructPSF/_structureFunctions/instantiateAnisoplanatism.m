@@ -19,9 +19,14 @@ nSrc = numel(psfr.trs.src);
 if isTT % -> anisokinetism as a Gaussian kernel
 
     % defining tip-tilt modes 
-    zern = zernike(2:3,'resolution',psfr.otf.nOtf);
+    zern = zernike(2:3,psfr.trs.tel.Dcircle,'resolution',psfr.otf.nOtf);
     X    = reshape(zern.modes(:,1),psfr.otf.nOtf,psfr.otf.nOtf);
     Y    = reshape(zern.modes(:,2),psfr.otf.nOtf,psfr.otf.nOtf);
+    % ccorreia 06/2021: the OTF is to provide a Nyquit sampling. The
+    % following definition was checked on anisokinetismModelCalibration.m
+    %[X,Y] = meshgrid(linspace(-2,2,psfr.otf.nOtf)*2);% from -2:2 because it's a Zernike TT. x2 because we are computing on 2x the domain!
+    % X = X/2.5; Y = X'; % hacking the code by hand. For tests only. 
+ 
     X2   = X.^2;
     Y2   = Y.^2;
     XY   = X.*Y';
